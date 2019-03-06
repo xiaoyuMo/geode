@@ -56,6 +56,9 @@ java_test_versions:
 - name: OpenJDK11
   version: 11
 
+benchmarks:
+  baseline_version: "1.8.0"
+
 java_build_version:
   name: OpenJDK8
   version: 8
@@ -125,6 +128,7 @@ tests:
   GRADLE_TASK: :geode-assembly:acceptanceTest
   execute_test_timeout: 6h
   PARALLEL_DUNIT: "false"
+  PARALLEL_GRADLE: "false"
 - name: "WindowsGfshDistributed"
   CPUS: "16"
   RAM: "64"
@@ -134,6 +138,7 @@ tests:
   GRADLE_TASK_OPTIONS: "-PtestCategory=org.apache.geode.test.junit.categories.GfshTest"
   execute_test_timeout: 6h
   PARALLEL_DUNIT: "false"
+  PARALLEL_GRADLE: "false"
 - name: "WindowsIntegration"
   CPUS: "16"
   RAM: "64"
@@ -142,6 +147,7 @@ tests:
   GRADLE_TASK: integrationTest
   execute_test_timeout: 6h
   PARALLEL_DUNIT: "false"
+  PARALLEL_GRADLE: "false"
 - name: "WindowsUnit"
   CPUS: "16"
   RAM: "64"

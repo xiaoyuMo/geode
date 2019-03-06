@@ -26,6 +26,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheRuntimeException;
 import org.apache.geode.cache.CacheWriter;
 import org.apache.geode.cache.CacheWriterException;
@@ -1956,6 +1957,7 @@ public class TXEntryState implements Releasable {
       return TXEntryState.this.getSortValue();
     }
 
+    @Override
     public int compareTo(Object o) {
       TxEntryEventImpl other = (TxEntryEventImpl) o;
       return getSortValue() - other.getSortValue();
@@ -1974,12 +1976,15 @@ public class TXEntryState implements Releasable {
     }
   }
 
+  @Immutable
   private static final TXEntryStateFactory factory = new TXEntryStateFactory() {
 
+    @Override
     public TXEntryState createEntry() {
       return new TXEntryState();
     }
 
+    @Override
     public TXEntryState createEntry(RegionEntry re, Object vId, Object pendingValue,
         Object entryKey, TXRegionState txrs, boolean isDistributed) {
       return new TXEntryState(re, vId, pendingValue, txrs, isDistributed);

@@ -19,7 +19,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.geode</groupId>
   <artifactId>geode-web</artifactId>
-  <version>1.9.0-SNAPSHOT</version>
+  <version>1.10.0-SNAPSHOT</version>
   <name>Apache Geode</name>
   <description>Apache Geode provides a database-like consistency model, reliable transaction processing and a shared-nothing architecture to maintain very low latency performance with high concurrency processing</description>
   <url>http://geode.apache.org</url>
@@ -34,11 +34,21 @@
     <developerConnection>scm:git:https://github.com:apache/geode.git</developerConnection>
     <url>https://github.com/apache/geode</url>
   </scm>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.apache.geode</groupId>
+        <artifactId>geode-all-bom</artifactId>
+        <version>1.10.0-SNAPSHOT</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <dependencies>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-aspects</artifactId>
-      <version>4.3.20.RELEASE</version>
       <scope>runtime</scope>
       <exclusions>
         <exclusion>
@@ -58,7 +68,6 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-oxm</artifactId>
-      <version>4.3.20.RELEASE</version>
       <scope>runtime</scope>
       <exclusions>
         <exclusion>
@@ -78,7 +87,6 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-webmvc</artifactId>
-      <version>4.3.20.RELEASE</version>
       <scope>runtime</scope>
       <exclusions>
         <exclusion>
@@ -98,7 +106,6 @@
     <dependency>
       <groupId>commons-fileupload</groupId>
       <artifactId>commons-fileupload</artifactId>
-      <version>1.3.3</version>
       <scope>runtime</scope>
       <exclusions>
         <exclusion>

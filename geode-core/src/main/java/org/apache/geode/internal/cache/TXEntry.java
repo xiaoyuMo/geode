@@ -51,6 +51,7 @@ public class TXEntry implements Region.Entry {
     this.rememberReads = rememberReads;
   }
 
+  @Override
   public boolean isLocal() {
     return true;
   }
@@ -65,6 +66,7 @@ public class TXEntry implements Region.Entry {
     }
   }
 
+  @Override
   public boolean isDestroyed() {
     if (this.entryIsDestroyed) {
       return true;
@@ -82,19 +84,26 @@ public class TXEntry implements Region.Entry {
     return this.entryIsDestroyed;
   }
 
+  @Override
   public Object getKey() {
     checkEntryDestroyed();
     return this.keyInfo.getKey();
   }
 
+  @Override
   @Unretained
   public Object getValue() {
+    return getValue(true);
+  }
+
+  @Unretained
+  public Object getValue(boolean createIfAbsent) {
     checkTX();
     // Object value = this.localRegion.getDeserialized(this.key, false, this.myTX,
     // this.rememberReads);
     @Unretained
     Object value = this.myTX.getDeserializedValue(keyInfo, this.localRegion, false, false, false,
-        null, false, false);
+        null, false, false, createIfAbsent);
     if (value == null) {
       throw new EntryDestroyedException(this.keyInfo.getKey().toString());
     } else if (Token.isInvalid(value)) {
@@ -104,11 +113,13 @@ public class TXEntry implements Region.Entry {
     return value;
   }
 
+  @Override
   public Region getRegion() {
     checkEntryDestroyed();
     return this.localRegion;
   }
 
+  @Override
   public CacheStatistics getStatistics() {
     // prefer entry destroyed exception over statistics disabled exception
     checkEntryDestroyed();
@@ -120,32 +131,39 @@ public class TXEntry implements Region.Entry {
     }
     // On a TXEntry stats are non-existent so return a dummy impl
     return new CacheStatistics() {
+      @Override
       public long getLastModifiedTime() {
         return (getRegion() != null) ? ((LocalRegion) getRegion()).cacheTimeMillis()
             : System.currentTimeMillis();
       }
 
+      @Override
       public long getLastAccessedTime() {
         return (getRegion() != null) ? ((LocalRegion) getRegion()).cacheTimeMillis()
             : System.currentTimeMillis();
       }
 
+      @Override
       public long getMissCount() {
         return 0;
       }
 
+      @Override
       public long getHitCount() {
         return 0;
       }
 
+      @Override
       public float getHitRatio() {
         return 0;
       }
 
+      @Override
       public void resetCounts() {}
     };
   }
 
+  @Override
   public Object getUserAttribute() {
     checkTX();
     throwIfUAOperationForPR();
@@ -158,6 +176,7 @@ public class TXEntry implements Region.Entry {
     }
   }
 
+  @Override
   public Object setUserAttribute(Object value) {
     checkTX();
     throwIfUAOperationForPR();
@@ -228,6 +247,7 @@ public class TXEntry implements Region.Entry {
   /**
    * @since GemFire 5.0
    */
+  @Override
   public Object setValue(Object arg0) {
     return this.localRegion.put(this.getKey(), arg0);
   }

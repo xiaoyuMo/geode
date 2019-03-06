@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.geode.SystemFailure;
 import org.apache.geode.internal.logging.LoggingExecutors;
@@ -68,6 +69,13 @@ public class SocketCloser {
   private final int asyncClosePoolMaxThreads;
   private final long asyncCloseWaitTime;
   private final TimeUnit asyncCloseWaitUnits;
+  /**
+   * Protect access to closed synchronizing with closedLock
+   */
+  private final ReentrantLock closedLock = new ReentrantLock();
+  /**
+   * Protect access to closed using synchronizing with closedLock
+   */
   private boolean closed;
 
   public SocketCloser() {
@@ -132,12 +140,15 @@ public class SocketCloser {
    * called then the asyncClose will be done synchronously.
    */
   public void close() {
-    synchronized (this) {
+    closedLock.lock();
+    try {
       if (!this.closed) {
         this.closed = true;
       } else {
         return;
       }
+    } finally {
+      closedLock.unlock();
     }
     for (ExecutorService executorService : asyncCloseExecutors.values()) {
       executorService.shutdown();
@@ -158,7 +169,7 @@ public class SocketCloser {
    *
    * @param socket the socket to close
    * @param address identifies who the socket is connected to
-   * @param extra an optional Runnable with stuff to execute in the async thread
+   * @param extra an optional Runnable with stuff to execute before the socket is closed
    */
   public void asyncClose(final Socket socket, final String address, final Runnable extra) {
     if (socket == null || socket.isClosed()) {
@@ -167,12 +178,14 @@ public class SocketCloser {
     boolean doItInline = false;
     try {
       Future submittedTask = null;
-      synchronized (this) {
+      closedLock.lock();
+      try {
         if (closed) {
           // this SocketCloser has been closed so do a synchronous, inline, close
           doItInline = true;
         } else {
           submittedTask = asyncExecute(address, new Runnable() {
+            @Override
             public void run() {
               Thread.currentThread().setName("AsyncSocketCloser for " + address);
               try {
@@ -186,6 +199,8 @@ public class SocketCloser {
             }
           });
         }
+      } finally {
+        closedLock.unlock();
       }
       if (submittedTask != null) {
         waitForFutureTaskWithTimeout(submittedTask);

@@ -22,6 +22,7 @@ import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
+import org.apache.geode.annotations.Immutable;
 
 /**
  * Gathers together a number of {@link StatisticDescriptor statistics} into one logical type.
@@ -31,6 +32,7 @@ import org.apache.geode.StatisticsTypeFactory;
  *
  * @since GemFire 3.0
  */
+@Immutable
 public class StatisticsTypeImpl implements StatisticsType {
 
   /** The name of this statistics type */
@@ -153,22 +155,27 @@ public class StatisticsTypeImpl implements StatisticsType {
 
   ////////////////////// StatisticsType Methods //////////////////////
 
+  @Override
   public String getName() {
     return this.name;
   }
 
+  @Override
   public String getDescription() {
     return this.description;
   }
 
+  @Override
   public StatisticDescriptor[] getStatistics() {
     return this.stats;
   }
 
+  @Override
   public int nameToId(String name) {
     return nameToDescriptor(name).getId();
   }
 
+  @Override
   public StatisticDescriptor nameToDescriptor(String name) {
     StatisticDescriptorImpl stat = (StatisticDescriptorImpl) statsMap.get(name);
     if (stat == null) {

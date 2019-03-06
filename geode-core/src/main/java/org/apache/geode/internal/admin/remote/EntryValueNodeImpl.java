@@ -48,7 +48,7 @@ public class EntryValueNodeImpl implements EntryValueNode, Externalizable/* , Da
   private String name;
   private boolean primitive;
   private EntryValueNodeImpl[] fields;
-  private static ThreadLocal recursionSet = new ThreadLocal();
+  private static final ThreadLocal recursionSet = new ThreadLocal();
 
   public static EntryValueNodeImpl createFromValueRoot(Object value, boolean logicalInspection) {
     recursionSet.set(new IdentityHashMap());
@@ -315,18 +315,22 @@ public class EntryValueNodeImpl implements EntryValueNode, Externalizable/* , Da
     return (obj instanceof Map || obj instanceof List || obj instanceof Collection);
   }
 
+  @Override
   public boolean isPrimitiveOrString() {
     return primitive;
   }
 
+  @Override
   public String getName() {
     return name;
   }
 
+  @Override
   public String getType() {
     return type;
   }
 
+  @Override
   public EntryValueNode[] getChildren() {
     if (fields != null) {
       return fields;
@@ -335,6 +339,7 @@ public class EntryValueNodeImpl implements EntryValueNode, Externalizable/* , Da
     }
   }
 
+  @Override
   public Object getPrimitiveValue() {
     return primitiveVal;
   }
@@ -363,6 +368,7 @@ public class EntryValueNodeImpl implements EntryValueNode, Externalizable/* , Da
     }
   }
 
+  @Override
   public void writeExternal(ObjectOutput out) throws IOException {
     out.writeObject(primitiveVal);
     out.writeObject(type);
@@ -371,6 +377,7 @@ public class EntryValueNodeImpl implements EntryValueNode, Externalizable/* , Da
     out.writeBoolean(primitive);
   }
 
+  @Override
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
     this.primitiveVal = in.readObject();
     this.type = (String) in.readObject();

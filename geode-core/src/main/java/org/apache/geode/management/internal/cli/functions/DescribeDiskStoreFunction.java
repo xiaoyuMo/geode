@@ -16,15 +16,12 @@
 package org.apache.geode.management.internal.cli.functions;
 
 import java.io.File;
-import java.util.HashSet;
 import java.util.Properties;
-import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.cache.Cache;
-import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.EvictionAction;
 import org.apache.geode.cache.Region;
@@ -39,7 +36,7 @@ import org.apache.geode.internal.lang.ObjectUtils;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.util.ArrayUtils;
 import org.apache.geode.management.internal.cli.domain.DiskStoreDetails;
-import org.apache.geode.management.internal.cli.exceptions.EntityNotFoundException;
+import org.apache.geode.management.internal.exceptions.EntityNotFoundException;
 
 /**
  * The DescribeDiskStoreFunction class is an implementation of a GemFire Function used to collect
@@ -58,13 +55,6 @@ public class DescribeDiskStoreFunction implements InternalFunction {
 
   private static final Logger logger = LogService.getLogger();
 
-  private static final Set<DataPolicy> PERSISTENT_DATA_POLICIES = new HashSet<>(2);
-
-  static {
-    PERSISTENT_DATA_POLICIES.add(DataPolicy.PERSISTENT_PARTITION);
-    PERSISTENT_DATA_POLICIES.add(DataPolicy.PERSISTENT_REPLICATE);
-  }
-
   protected static void assertState(final boolean condition, final String message,
       final Object... args) {
     if (!condition) {
@@ -72,6 +62,7 @@ public class DescribeDiskStoreFunction implements InternalFunction {
     }
   }
 
+  @Override
   public String getId() {
     return getClass().getName();
   }
@@ -79,6 +70,7 @@ public class DescribeDiskStoreFunction implements InternalFunction {
   @SuppressWarnings("unused")
   public void init(final Properties props) {}
 
+  @Override
   public void execute(final FunctionContext context) {
     Cache cache = context.getCache();
 

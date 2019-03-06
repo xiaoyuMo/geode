@@ -14,7 +14,7 @@
  */
 package org.apache.geode.internal.logging;
 
-import static org.apache.geode.internal.logging.InternalLogWriter.ALL_LEVEL;
+import static org.apache.geode.internal.logging.LogWriterLevel.ALL;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,6 +23,8 @@ import java.util.Iterator;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.Assert;
 
@@ -39,9 +41,11 @@ import org.apache.geode.internal.Assert;
 public class LoggingThreadGroup extends ThreadGroup {
 
   /** A "local" log writer that logs exceptions to standard error */
-  private static final StandardErrorPrinter stderr = new StandardErrorPrinter(ALL_LEVEL);
+  @Immutable
+  private static final StandardErrorPrinter stderr = new StandardErrorPrinter(ALL.intLevel());
 
   /** A set of all created LoggingThreadGroups */
+  @MakeNotStatic
   private static final Collection<LoggingThreadGroup> loggingThreadGroups = new ArrayList<>();
 
   /**

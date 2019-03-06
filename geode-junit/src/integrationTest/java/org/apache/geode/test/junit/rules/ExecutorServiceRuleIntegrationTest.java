@@ -32,6 +32,10 @@ import org.mockito.InOrder;
 
 import org.apache.geode.test.junit.runners.TestRunner;
 
+/**
+ * Integration tests for {@link ExecutorServiceRule}. These are tests that pause a little longer
+ * than acceptable for a unit test.
+ */
 public class ExecutorServiceRuleIntegrationTest {
 
   private static volatile CountDownLatch hangLatch;
@@ -40,14 +44,14 @@ public class ExecutorServiceRuleIntegrationTest {
   private static Awaits.Invocations invocations;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     hangLatch = new CountDownLatch(1);
     terminateLatch = new CountDownLatch(1);
     invocations = mock(Awaits.Invocations.class);
   }
 
   @After
-  public void tearDown() throws Exception {
+  public void tearDown() {
     invocations = null;
 
     while (hangLatch != null && hangLatch.getCount() > 0) {
@@ -69,8 +73,7 @@ public class ExecutorServiceRuleIntegrationTest {
     assertThat(result.wasSuccessful()).isTrue();
 
     assertThat(isTestHung()).isTrue();
-    await()
-        .untilAsserted(() -> assertThat(executorService.isTerminated()).isTrue());
+    await().untilAsserted(() -> assertThat(executorService.isTerminated()).isTrue());
     invocations.afterRule();
 
     InOrder invocationOrder = inOrder(invocations);
@@ -92,17 +95,17 @@ public class ExecutorServiceRuleIntegrationTest {
         ExecutorServiceRule.builder().awaitTermination(2, SECONDS).build();
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
       executorService = executorServiceRule.getExecutorService();
     }
 
     @After
-    public void after() throws Exception {
+    public void after() {
       invocations.afterTest();
     }
 
     @Test
-    public void doTest() throws Exception {
+    public void doTest() {
       executorServiceRule.runAsync(() -> {
         try {
           hangLatch.await(1, SECONDS);
@@ -117,6 +120,7 @@ public class ExecutorServiceRuleIntegrationTest {
     }
 
     interface Invocations {
+
       void afterHangLatch();
 
       void afterTerminateLatch();

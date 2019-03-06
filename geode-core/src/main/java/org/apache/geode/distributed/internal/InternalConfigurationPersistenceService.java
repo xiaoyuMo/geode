@@ -64,7 +64,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import org.apache.geode.CancelException;
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.CacheLoaderException;
 import org.apache.geode.cache.DataPolicy;
@@ -128,6 +128,7 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
    * Name of the region which is used to store the configuration information
    */
   public static final String CONFIG_REGION_NAME = "_ConfigurationRegion";
+  private static final String CACHE_CONFIG_VERSION = "1.0";
 
   private final String configDirPath;
   private final String configDiskDirPath;
@@ -139,7 +140,7 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
   private DistributedLockService sharedConfigLockingService;
   private JAXBService jaxbService;
 
-  @TestingOnly
+  @VisibleForTesting
   InternalConfigurationPersistenceService(Class<?>... xsdClasses) {
     configDirPath = null;
     configDiskDirPath = null;
@@ -148,7 +149,7 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
     jaxbService.validateWithLocalCacheXSD();
   }
 
-  @TestingOnly
+  @VisibleForTesting
   InternalConfigurationPersistenceService() {
     configDirPath = null;
     configDiskDirPath = null;
@@ -193,10 +194,12 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
     // else, scan the classpath to find all the classes annotated with XSDRootElement
     else {
       Set<String> packages = getPackagesToScan();
-      ClasspathScanLoadHelper scanner = new ClasspathScanLoadHelper(packages);
-      Set<Class<?>> scannedClasses = scanner.scanClasspathForAnnotation(XSDRootElement.class,
-          packages.toArray(new String[] {}));
-      this.jaxbService = new JAXBService(scannedClasses.toArray(new Class[scannedClasses.size()]));
+      try (ClasspathScanLoadHelper scanner = new ClasspathScanLoadHelper(packages)) {
+        Set<Class<?>> scannedClasses = scanner.scanClasspathForAnnotation(XSDRootElement.class,
+            packages.toArray(new String[] {}));
+        this.jaxbService =
+            new JAXBService(scannedClasses.toArray(new Class[scannedClasses.size()]));
+      }
     }
     jaxbService.validateWithLocalCacheXSD();
   }
@@ -938,16 +941,28 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
 
   @Override
   public CacheConfig getCacheConfig(String group) {
+    return getCacheConfig(group, false);
+  }
+
+
+  @Override
+  public CacheConfig getCacheConfig(String group, boolean createNew) {
     if (group == null) {
       group = CLUSTER_CONFIG;
     }
     Configuration configuration = getConfiguration(group);
     if (configuration == null) {
+      if (createNew) {
+        return new CacheConfig(CACHE_CONFIG_VERSION);
+      }
       return null;
     }
     String xmlContent = configuration.getCacheXmlContent();
     // group existed, so we should create a blank one to start with
     if (xmlContent == null || xmlContent.isEmpty()) {
+      if (createNew) {
+        return new CacheConfig(CACHE_CONFIG_VERSION);
+      }
       return null;
     }
 
@@ -961,10 +976,7 @@ public class InternalConfigurationPersistenceService implements ConfigurationPer
     }
     lockSharedConfiguration();
     try {
-      CacheConfig cacheConfig = getCacheConfig(group);
-      if (cacheConfig == null) {
-        cacheConfig = new CacheConfig("1.0");
-      }
+      CacheConfig cacheConfig = getCacheConfig(group, true);
       cacheConfig = mutator.apply(cacheConfig);
       if (cacheConfig == null) {
         // mutator returns a null config, indicating no change needs to be persisted

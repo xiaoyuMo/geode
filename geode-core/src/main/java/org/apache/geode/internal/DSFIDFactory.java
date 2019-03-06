@@ -26,6 +26,7 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.admin.internal.SystemMemberCacheEventProcessor;
 import org.apache.geode.admin.jmx.internal.StatAlertNotification;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.InterestResultPolicy;
 import org.apache.geode.cache.client.internal.CacheServerLoadMessage;
 import org.apache.geode.cache.client.internal.locator.ClientConnectionRequest;
@@ -427,24 +428,30 @@ public class DSFIDFactory implements DataSerializableFixedID {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public int getDSFID() {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public Version[] getSerializationVersions() {
     throw new UnsupportedOperationException();
   }
 
+  @Immutable
   private static final Constructor<?>[] dsfidMap = new Constructor<?>[256];
 
+  @Immutable("This maybe should be wrapped in an unmodifiableMap?")
   private static final Int2ObjectOpenHashMap dsfidMap2 = new Int2ObjectOpenHashMap(800);
 
   static {

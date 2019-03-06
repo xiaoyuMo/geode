@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheWriterException;
@@ -92,8 +93,10 @@ public class PartitionedRegionHelper {
 
   public static final int DEFAULT_TOTAL_WAIT_RETRY_ITERATION = 60 * 60 * 1000; // milliseconds
 
+  @Immutable
   public static final DataPolicy DEFAULT_DATA_POLICY = DataPolicy.PARTITION;
 
+  @Immutable
   public static final Set ALLOWED_DATA_POLICIES;
 
   static final Object dlockMonitor = new Object();
@@ -260,6 +263,7 @@ public class PartitionedRegionHelper {
       RegionAttributes ra = factory.create();
       // Create anonymous stats holder for Partitioned Region meta data
       final HasCachePerfStats prMetaStatsHolder = new HasCachePerfStats() {
+        @Override
         public CachePerfStats getCachePerfStats() {
           return new CachePerfStats(cache.getDistributedSystem(), "partitionMetaData");
         }
@@ -374,6 +378,7 @@ public class PartitionedRegionHelper {
           // we have determined the node to remove (Which includes the
           // serial number).
           cache.getDistributionManager().getPrMetaDataCleanupThreadPool().execute(new Runnable() {
+            @Override
             public void run() {
               cleanPartitionedRegionMetaDataForNode(cache, node1, prConf, prName);
               if (postCleanupTask != null) {
@@ -762,7 +767,7 @@ public class PartitionedRegionHelper {
   }
 
 
-  public static String TWO_SEPARATORS = Region.SEPARATOR + Region.SEPARATOR;
+  public static final String TWO_SEPARATORS = Region.SEPARATOR + Region.SEPARATOR;
 
   public static String unescapePRPath(String escapedPath) {
     String path = escapedPath.replace('_', Region.SEPARATOR_CHAR);
@@ -932,19 +937,23 @@ public class PartitionedRegionHelper {
       this.cache = cache;
     }
 
+    @Override
     public void memberJoined(DistributionManager distributionManager,
         InternalDistributedMember id) {
 
     }
 
+    @Override
     public void memberDeparted(DistributionManager distributionManager,
         final InternalDistributedMember id, boolean crashed) {
       PartitionedRegionHelper.cleanUpMetaDataOnNodeFailure(cache, id);
     }
 
+    @Override
     public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
         InternalDistributedMember whoSuspected, String reason) {}
 
+    @Override
     public void quorumLost(DistributionManager distributionManager,
         Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
@@ -953,6 +962,7 @@ public class PartitionedRegionHelper {
   static class FixedPartitionAttributesListener extends CacheListenerAdapter {
     private static final Logger logger = LogService.getLogger();
 
+    @Override
     public void afterCreate(EntryEvent event) {
       PartitionRegionConfig prConfig = (PartitionRegionConfig) event.getNewValue();
       if (!prConfig.getElderFPAs().isEmpty()) {
@@ -960,6 +970,7 @@ public class PartitionedRegionHelper {
       }
     }
 
+    @Override
     public void afterUpdate(EntryEvent event) {
       PartitionRegionConfig prConfig = (PartitionRegionConfig) event.getNewValue();
       if (!prConfig.getElderFPAs().isEmpty()) {

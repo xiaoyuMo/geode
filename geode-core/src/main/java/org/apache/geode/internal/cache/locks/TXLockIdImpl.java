@@ -19,6 +19,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.internal.locks.LockGrantorId;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.DataSerializableFixedID;
@@ -35,6 +36,7 @@ public class TXLockIdImpl implements TXLockId, DataSerializableFixedID {
   private InternalDistributedMember memberId;
 
   /** Increments for each txLockId that is generated in this vm */
+  @MakeNotStatic
   private static int txCount = 0;
 
   /** Unique identifier within this member's vm */
@@ -51,18 +53,22 @@ public class TXLockIdImpl implements TXLockId, DataSerializableFixedID {
     }
   }
 
+  @Override
   public int getCount() {
     return this.id;
   }
 
+  @Override
   public InternalDistributedMember getMemberId() {
     return this.memberId;
   }
 
+  @Override
   public void setLockGrantorId(LockGrantorId lockGrantorId) {
     this.grantedBy = lockGrantorId;
   }
 
+  @Override
   public LockGrantorId getLockGrantorId() {
     return this.grantedBy;
   }
@@ -109,15 +115,18 @@ public class TXLockIdImpl implements TXLockId, DataSerializableFixedID {
 
   public TXLockIdImpl() {}
 
+  @Override
   public int getDSFID() {
     return TRANSACTION_LOCK_ID;
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.memberId = (InternalDistributedMember) DataSerializer.readObject(in);
     this.id = in.readInt();
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     DataSerializer.writeObject(this.memberId, out);
     out.writeInt(this.id);

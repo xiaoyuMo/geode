@@ -35,6 +35,8 @@ import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheRuntimeException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.query.QueryException;
@@ -72,6 +74,7 @@ public class PRQueryProcessor {
       getInteger(DistributionConfig.GEMFIRE_PREFIX + "PRQueryProcessor.numThreads", 1);
 
   /* For Test purpose */
+  @MutableForTesting
   public static int TEST_NUM_THREADS = 0;
 
   private PartitionedRegionDataStore _prds;
@@ -298,6 +301,7 @@ public class PRQueryProcessor {
    */
   static class PRQueryExecutor {
 
+    @MakeNotStatic
     private static ExecutorService execService = null;
 
     /**
@@ -329,7 +333,7 @@ public class PRQueryProcessor {
     static synchronized void initializeExecutorService() {
       if (execService == null || execService.isShutdown() || execService.isTerminated()) {
         int numThreads = (TEST_NUM_THREADS > 1 ? TEST_NUM_THREADS : NUM_THREADS);
-        execService = LoggingExecutors.newFixedThreadPool("PRQueryProcessor", false, numThreads);
+        execService = LoggingExecutors.newFixedThreadPool("PRQueryProcessor", true, numThreads);
       }
     }
   }
@@ -357,14 +361,17 @@ public class PRQueryProcessor {
       return "EndOfBucket(" + this.bucketId + ")";
     }
 
+    @Override
     public int getDSFID() {
       return END_OF_BUCKET;
     }
 
+    @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       this.bucketId = in.readInt();
     }
 
+    @Override
     public void toData(DataOutput out) throws IOException {
       out.writeInt(this.bucketId);
     }
@@ -397,6 +404,7 @@ public class PRQueryProcessor {
       this.parameters = parameters;
     }
 
+    @Override
     public Object call() throws Exception {
       BucketQueryResult bukResult = new BucketQueryResult(this._bucketId);
       try {

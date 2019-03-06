@@ -16,14 +16,24 @@
  */
 package org.apache.geode.connectors.jdbc.internal;
 
+
+import java.sql.JDBCType;
+import java.util.List;
 import java.util.Set;
 
 public interface TableMetaDataView {
-  String getTableName();
+  /**
+   * The path will include the catalog and schema if needed.
+   *
+   * @return the fully qualified, quoted, table path
+   */
+  String getQuotedTablePath();
 
-  String getKeyColumnName();
+  List<String> getKeyColumnNames();
 
-  int getColumnDataType(String columnName);
+  JDBCType getColumnDataType(String columnName);
+
+  boolean isColumnNullable(String columnName);
 
   Set<String> getColumnNames();
 

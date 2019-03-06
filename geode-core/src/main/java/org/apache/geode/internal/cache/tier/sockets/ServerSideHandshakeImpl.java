@@ -25,6 +25,7 @@ import java.security.Principal;
 import java.util.Properties;
 
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -41,6 +42,7 @@ import org.apache.geode.pdx.internal.PeerTypeRegistration;
 import org.apache.geode.security.AuthenticationRequiredException;
 
 public class ServerSideHandshakeImpl extends Handshake implements ServerSideHandshake {
+  @Immutable
   private static final Version currentServerVersion =
       ServerSideHandshakeFactory.currentServerVersion;
   private Version clientVersion;
@@ -120,6 +122,7 @@ public class ServerSideHandshakeImpl extends Handshake implements ServerSideHand
     return this.clientVersion;
   }
 
+  @Override
   public Version getVersion() {
     return this.clientVersion;
   }
@@ -215,6 +218,7 @@ public class ServerSideHandshakeImpl extends Handshake implements ServerSideHand
     }
   }
 
+  @Override
   public int getClientReadTimeout() {
     return this.clientReadTimeout;
   }

@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.DurableClientAttributes;
@@ -54,7 +55,7 @@ public class ClientProxyMembershipID
 
   private static final Logger logger = LogService.getLogger();
 
-  private static ThreadLocal<String> POOL_NAME = new ThreadLocal<String>();
+  private static final ThreadLocal<String> POOL_NAME = new ThreadLocal<String>();
 
   public static void setPoolName(String poolName) {
     POOL_NAME.set(poolName);
@@ -66,11 +67,13 @@ public class ClientProxyMembershipID
 
   private static final int BYTES_32KB = 32768;
 
+  @MakeNotStatic
   public static volatile DistributedSystem system = null;
 
   /**
    * the membership id of the distributed system in this client (if running in a client)
    */
+  @MakeNotStatic
   public static DistributedMember systemMemberId;
 
   // durable_synch_counter=1 is reserved for durable clients
@@ -78,6 +81,8 @@ public class ClientProxyMembershipID
   // session is selected on the serverside by always using the
   // same uniqueID value which is set via the synch_counter
   private static final int durable_synch_counter = 1;
+
+  @MakeNotStatic
   private static int synch_counter = 0;
 
   protected byte[] identity;
@@ -251,6 +256,7 @@ public class ClientProxyMembershipID
    *
    * @see Externalizable
    */
+  @Override
   public void writeExternal(ObjectOutput out) throws IOException {
     // if (this.transientPort == 0) {
     // InternalDistributedSystem.getLogger().warning(
@@ -275,6 +281,7 @@ public class ClientProxyMembershipID
    *
    * @see Externalizable
    */
+  @Override
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
     int identityLength = in.readShort();
     if (identityLength > BYTES_32KB) {
@@ -306,10 +313,12 @@ public class ClientProxyMembershipID
     }
   }
 
+  @Override
   public int getDSFID() {
     return CLIENT_PROXY_MEMBERSHIPID;
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     // if (this.transientPort == 0) {
     // InternalDistributedSystem.getLogger().warning(
@@ -321,6 +330,7 @@ public class ClientProxyMembershipID
     out.writeInt(this.uniqueId);
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.identity = DataSerializer.readByteArray(in);
     this.uniqueId = in.readInt();

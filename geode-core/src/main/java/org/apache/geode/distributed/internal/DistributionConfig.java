@@ -38,6 +38,7 @@ import static org.apache.geode.distributed.ConfigurationProperties.CONSERVE_SOCK
 import static org.apache.geode.distributed.ConfigurationProperties.DELTA_PROPAGATION;
 import static org.apache.geode.distributed.ConfigurationProperties.DEPLOY_WORKING_DIR;
 import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_AUTO_RECONNECT;
+import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_JMX;
 import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_TCP;
 import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
 import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_TRANSACTIONS;
@@ -194,13 +195,15 @@ import java.util.Properties;
 import org.apache.geode.GemFireIOException;
 import org.apache.geode.LogWriter;
 import org.apache.geode.UnmodifiableException;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeImmutable;
 import org.apache.geode.distributed.ConfigurationProperties;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.internal.Config;
 import org.apache.geode.internal.ConfigSource;
-import org.apache.geode.internal.logging.InternalLogWriter;
 import org.apache.geode.internal.logging.LogConfig;
 import org.apache.geode.internal.logging.LogWriterImpl;
+import org.apache.geode.internal.logging.LogWriterLevel;
 import org.apache.geode.internal.security.SecurableCommunicationChannel;
 import org.apache.geode.internal.statistics.StatisticsConfig;
 import org.apache.geode.internal.tcp.Connection;
@@ -637,21 +640,21 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * The default {@link ConfigurationProperties#LOG_LEVEL}.
    * <p>
-   * Actual value of this constant is {@link InternalLogWriter#CONFIG_LEVEL}.
+   * Actual value of this constant is {@link LogWriterLevel#CONFIG#intLevel()}.
    */
-  int DEFAULT_LOG_LEVEL = InternalLogWriter.CONFIG_LEVEL;
+  int DEFAULT_LOG_LEVEL = LogWriterLevel.CONFIG.intLevel();
   /**
    * The minimum {@link ConfigurationProperties#LOG_LEVEL}.
    * <p>
-   * Actual value of this constant is {@link InternalLogWriter#ALL_LEVEL}.
+   * Actual value of this constant is {@link LogWriterLevel#ALL#intLevel()}.
    */
-  int MIN_LOG_LEVEL = InternalLogWriter.ALL_LEVEL;
+  int MIN_LOG_LEVEL = LogWriterLevel.ALL.intLevel();
   /**
    * The maximum {@link ConfigurationProperties#LOG_LEVEL}.
    * <p>
-   * Actual value of this constant is {@link InternalLogWriter#NONE_LEVEL}.
+   * Actual value of this constant is {@link LogWriterLevel#NONE#intLevel()}.
    */
-  int MAX_LOG_LEVEL = InternalLogWriter.NONE_LEVEL;
+  int MAX_LOG_LEVEL = LogWriterLevel.NONE.intLevel();
 
   /**
    * The name of the {@link ConfigurationProperties#LOG_LEVEL} property
@@ -664,6 +667,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * Returns the value of the {@link ConfigurationProperties#STATISTIC_SAMPLING_ENABLED} property
    */
+  @Override
   @ConfigAttributeGetter(name = STATISTIC_SAMPLING_ENABLED)
   boolean getStatisticSamplingEnabled();
 
@@ -687,6 +691,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * Returns the value of the {@link ConfigurationProperties#STATISTIC_SAMPLE_RATE} property
    */
+  @Override
   @ConfigAttributeGetter(name = STATISTIC_SAMPLE_RATE)
   int getStatisticSampleRate();
 
@@ -727,6 +732,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
    *
    * @return <code>null</code> if no file was specified
    */
+  @Override
   @ConfigAttributeGetter(name = STATISTIC_ARCHIVE_FILE)
   File getStatisticArchiveFile();
 
@@ -849,6 +855,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * Returns the value of the {@link ConfigurationProperties#ARCHIVE_FILE_SIZE_LIMIT} property
    */
+  @Override
   @ConfigAttributeGetter(name = ARCHIVE_FILE_SIZE_LIMIT)
   int getArchiveFileSizeLimit();
 
@@ -887,6 +894,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * Returns the value of the {@link ConfigurationProperties#ARCHIVE_DISK_SPACE_LIMIT} property
    */
+  @Override
   @ConfigAttributeGetter(name = ARCHIVE_DISK_SPACE_LIMIT)
   int getArchiveDiskSpaceLimit();
 
@@ -1469,6 +1477,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   /**
    * The default value of the {@link ConfigurationProperties#MCAST_FLOW_CONTROL} property
    */
+  @Immutable
   FlowControlParams DEFAULT_MCAST_FLOW_CONTROL = new FlowControlParams(1048576, (float) 0.25, 5000);
 
   /**
@@ -1622,6 +1631,29 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
    * The default value of the {@link ConfigurationProperties#DISABLE_TCP} property
    */
   boolean DEFAULT_DISABLE_TCP = false;
+
+  /**
+   * Returns the value of the {@link ConfigurationProperties#DISABLE_JMX} property
+   */
+  @ConfigAttributeGetter(name = DISABLE_JMX)
+  boolean getDisableJmx();
+
+  /**
+   * Sets the value of the {@link ConfigurationProperties#DISABLE_JMX} property.
+   */
+  @ConfigAttributeSetter(name = DISABLE_JMX)
+  void setDisableJmx(boolean newValue);
+
+  /**
+   * The name of the {@link ConfigurationProperties#DISABLE_JMX} property
+   */
+  @ConfigAttribute(type = Boolean.class)
+  String DISABLE_JMX_NAME = DISABLE_JMX;
+
+  /**
+   * The default value of the {@link ConfigurationProperties#DISABLE_JMX} property
+   */
+  boolean DEFAULT_DISABLE_JMX = false;
 
   /**
    * Turns on timing statistics for the distributed system
@@ -1802,6 +1834,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
    */
   String RESTRICT_MEMBERSHIP_PORT_RANGE = GEMFIRE_PREFIX + "use-ephemeral-ports";
 
+  @MakeImmutable
   int[] DEFAULT_MEMBERSHIP_PORT_RANGE = new int[] {41000, 61000};
 
   @ConfigAttributeGetter(name = MEMBERSHIP_PORT_RANGE)
@@ -4935,6 +4968,7 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
    *
    * @since Geode 1.0
    */
+  @Immutable
   SecurableCommunicationChannel[] DEFAULT_SSL_ENABLED_COMPONENTS =
       new SecurableCommunicationChannel[] {};
 
@@ -5218,9 +5252,13 @@ public interface DistributionConfig extends Config, LogConfig, StatisticsConfig 
   // *************** Initializers to gather all the annotations in this class
   // ************************
 
+  @MakeImmutable
   Map<String, ConfigAttribute> attributes = new HashMap<>();
+  @MakeImmutable
   Map<String, Method> setters = new HashMap<>();
+  @MakeImmutable
   Map<String, Method> getters = new HashMap<>();
+  @MakeImmutable
   String[] dcValidAttributeNames = init();
 
   static String[] init() {

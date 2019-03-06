@@ -16,7 +16,8 @@ package org.apache.geode.internal.cache;
 
 import java.util.List;
 
-import org.apache.geode.cache.client.internal.InternalClientCache;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.cache.GemFireCache;
 import org.apache.geode.internal.cache.xmlcache.CacheServerCreation;
 import org.apache.geode.pdx.PdxSerializer;
 import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
@@ -31,6 +32,7 @@ import org.apache.geode.security.SecurityManager;
  */
 public class CacheConfig {
   public static final boolean DEFAULT_PDX_READ_SERIALIZED = false;
+  @Immutable
   public static final PdxSerializer DEFAULT_PDX_SERIALIZER = null;
   public static final String DEFAULT_PDX_DISK_STORE = null;
   public static final boolean DEFAULT_PDX_PERSISTENT = false;
@@ -167,7 +169,7 @@ public class CacheConfig {
     this.cacheServerCreation = servers;
   }
 
-  public void validateCacheConfig(InternalClientCache cacheInstance) {
+  public void validateCacheConfig(GemFireCache cacheInstance) {
     // To fix bug 44961 only validate our attributes against the existing cache
     // if they have been explicitly set by the set.
     // So all the following "ifs" check that "*UserSet" is true.

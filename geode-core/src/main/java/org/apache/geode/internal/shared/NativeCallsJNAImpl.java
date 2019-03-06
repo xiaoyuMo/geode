@@ -43,6 +43,8 @@ import com.sun.jna.win32.StdCallLibrary;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.internal.cache.DiskStoreImpl;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.process.signal.Signal;
@@ -68,6 +70,7 @@ public class NativeCallsJNAImpl {
   /**
    * The static instance of the JNA based implementation for this platform.
    */
+  @Immutable
   private static final NativeCalls instance = getImplInstance();
 
   private static NativeCalls getImplInstance() {
@@ -342,6 +345,7 @@ public class NativeCallsJNAImpl {
       }
     }
 
+    @Override
     public boolean isTTY() {
       try {
         return isatty(0) == 1;
@@ -424,12 +428,14 @@ public class NativeCallsJNAImpl {
 
     private ThreadLocal<Structure> tSpecs = new ThreadLocal<Structure>();
 
+    @MakeNotStatic
     private static boolean isStatFSEnabled;
 
     public static class FSIDIntArr2 extends Structure {
 
       public int[] fsid = new int[2];
 
+      @Override
       protected List getFieldOrder() {
         return Arrays.asList(new String[] {"fsid"});
       }
@@ -439,6 +445,7 @@ public class NativeCallsJNAImpl {
 
       public int[] fspare = new int[5];
 
+      @Override
       protected List getFieldOrder() {
         return Arrays.asList(new String[] {"fspare"});
       }
@@ -503,7 +510,8 @@ public class NativeCallsJNAImpl {
       // TMPFS_MAGIC
       // 0xFF534D42 , 0x73757245 , 0x564c , 0x6969 , 0x517B , 0x01021994
       // 4283649346 , 1937076805 , 22092 , 26985 , 20859 , 16914836
-      private static int[] REMOTE_TYPES =
+      @Immutable
+      private static final int[] REMOTE_TYPES =
           new int[] { /* 4283649346, */ 1937076805, 22092, 26985, 20859, 16914836};
 
       public boolean isTypeLocal() {
@@ -524,6 +532,7 @@ public class NativeCallsJNAImpl {
 
       public long[] fspare = new long[5];
 
+      @Override
       protected List getFieldOrder() {
         return Arrays.asList(new String[] {"fspare"});
       }
@@ -561,7 +570,8 @@ public class NativeCallsJNAImpl {
       // TMPFS_MAGIC
       // 0xFF534D42 , 0x73757245 , 0x564c , 0x6969 , 0x517B , 0x01021994
       // 4283649346 , 1937076805 , 22092 , 26985 , 20859 , 16914836
-      private static long[] REMOTE_TYPES =
+      @Immutable
+      private static final long[] REMOTE_TYPES =
           new long[] {4283649346l, 1937076805l, 22092l, 26985l, 20859l, 16914836l};
 
       static {
@@ -634,6 +644,7 @@ public class NativeCallsJNAImpl {
      * getUsableSpace can hang. See bug #49155. On platforms other than Linux this will return false
      * even if it on local file system for now.
      */
+    @Override
     public boolean isOnLocalFileSystem(final String path) {
       if (!isStatFSEnabled) {
         // if (logger != null && logger.fineEnabled()) {
@@ -672,7 +683,8 @@ public class NativeCallsJNAImpl {
       return false;
     }
 
-    public static final String[] FallocateFileSystems = {"ext4", "xfs", "btrfs", "ocfs2"};
+    @Immutable
+    private static final String[] FallocateFileSystems = {"ext4", "xfs", "btrfs", "ocfs2"};
 
     @Override
     protected boolean hasFallocate(String path) {

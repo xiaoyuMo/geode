@@ -36,6 +36,8 @@ import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.NoSubscriptionServersAvailableException;
 import org.apache.geode.cache.Region;
@@ -91,6 +93,7 @@ public class PoolImpl implements InternalPool {
    * For durable client tests only. Connection Sources read this flag and return an empty list of
    * servers.
    */
+  @MutableForTesting
   public static volatile boolean TEST_DURABLE_IS_NET_DOWN = false;
 
   private final String name;
@@ -143,7 +146,7 @@ public class PoolImpl implements InternalPool {
   private final GatewaySender gatewaySender;
 
   private boolean keepAlive = false;
-  private static Object simpleLock = new Object();
+  private static final Object simpleLock = new Object();
 
   public static final int PRIMARY_QUEUE_NOT_AVAILABLE = -2;
   public static final int PRIMARY_QUEUE_TIMED_OUT = -1;
@@ -352,18 +355,22 @@ public class PoolImpl implements InternalPool {
    *
    * @return the cancellation criterion
    */
+  @Override
   public CancelCriterion getCancelCriterion() {
     return this.cancelCriterion;
   }
 
+  @Override
   public void releaseThreadLocalConnection() {
     executor.releaseThreadLocalConnection();
   }
 
+  @Override
   public void setupServerAffinity(boolean allowFailover) {
     executor.setupServerAffinity(allowFailover);
   }
 
+  @Override
   public void releaseServerAffinity() {
     executor.releaseServerAffinity();
   }
@@ -373,86 +380,107 @@ public class PoolImpl implements InternalPool {
    *
    * @see org.apache.geode.cache.Pool#getName()
    */
+  @Override
   public String getName() {
     return this.name;
   }
 
+  @Override
   public int getSocketConnectTimeout() {
     return this.socketConnectTimeout;
   }
 
+  @Override
   public int getFreeConnectionTimeout() {
     return this.freeConnectionTimeout;
   }
 
+  @Override
   public int getLoadConditioningInterval() {
     return this.loadConditioningInterval;
   }
 
+  @Override
   public int getMaxConnections() {
     return maxConnections;
   }
 
+  @Override
   public int getMinConnections() {
     return minConnections;
   }
 
+  @Override
   public int getRetryAttempts() {
     return retryAttempts;
   }
 
+  @Override
   public long getIdleTimeout() {
     return idleTimeout;
   }
 
+  @Override
   public long getPingInterval() {
     return pingInterval;
   }
 
+  @Override
   public int getStatisticInterval() {
     return this.statisticInterval;
   }
 
+  @Override
   public int getSocketBufferSize() {
     return this.socketBufferSize;
   }
 
+  @Override
   public boolean getThreadLocalConnections() {
     return this.threadLocalConnections;
   }
 
+  @Override
   public int getReadTimeout() {
     return this.readTimeout;
   }
 
+  @Override
   public boolean getSubscriptionEnabled() {
     return this.subscriptionEnabled;
   }
 
+  @Override
   public boolean getPRSingleHopEnabled() {
     return this.prSingleHopEnabled;
   }
 
+  @Override
   public int getSubscriptionRedundancy() {
     return this.subscriptionRedundancyLevel;
   }
 
+  @Override
   public int getSubscriptionMessageTrackingTimeout() {
     return this.subscriptionMessageTrackingTimeout;
   }
 
+  @Override
   public int getSubscriptionAckInterval() {
     return subscriptionAckInterval;
   }
 
+  @Override
   public String getServerGroup() {
     return this.serverGroup;
   }
 
+  @Override
   public boolean getMultiuserAuthentication() {
     return this.multiuserSecureModeEnabled;
   }
 
+  @Override
   public List<InetSocketAddress> getLocators() {
     return this.locators;
   }
@@ -462,6 +490,7 @@ public class PoolImpl implements InternalPool {
     return this.source.getOnlineLocators();
   }
 
+  @Override
   public List<InetSocketAddress> getServers() {
     return this.servers;
   }
@@ -474,6 +503,7 @@ public class PoolImpl implements InternalPool {
     return this.securityLogWriter;
   }
 
+  @Override
   public void destroy() {
     destroy(false);
   }
@@ -486,6 +516,7 @@ public class PoolImpl implements InternalPool {
     return sb.toString();
   }
 
+  @Override
   public void destroy(boolean keepAlive) {
     int cnt = getAttachCount();
     this.keepAlive = keepAlive;
@@ -621,6 +652,7 @@ public class PoolImpl implements InternalPool {
     }
   }
 
+  @Override
   public boolean isDestroyed() {
     return destroyed;
   }
@@ -733,6 +765,7 @@ public class PoolImpl implements InternalPool {
     // ignore startDisabled
   }
 
+  @Override
   public PoolStats getStats() {
     return this.stats;
   }
@@ -746,6 +779,7 @@ public class PoolImpl implements InternalPool {
    * @return the result of execution if any; null if not
    * @since GemFire 5.7
    */
+  @Override
   public Object execute(Op op) {
     // if(multiuser)
     // get a server from threadlocal cache else throw cacheWriterException
@@ -767,6 +801,7 @@ public class PoolImpl implements InternalPool {
    * @return the result of execution if any; null if not
    * @since GemFire 5.7
    */
+  @Override
   public Object execute(Op op, int retries) {
     authenticateIfRequired(null, op);
     return executor.execute(op, retries);
@@ -779,6 +814,7 @@ public class PoolImpl implements InternalPool {
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    */
+  @Override
   public Object executeOn(ServerLocation server, Op op) {
     authenticateIfRequired(server, op);
     return executor.executeOn(server, op);
@@ -792,6 +828,7 @@ public class PoolImpl implements InternalPool {
    * @param accessed true if the connection is accessed by this execute
    * @return the result of execution if any; null if not
    */
+  @Override
   public Object executeOn(ServerLocation server, Op op, boolean accessed,
       boolean onlyUseExistingCnx) {
     authenticateIfRequired(server, op);
@@ -805,11 +842,13 @@ public class PoolImpl implements InternalPool {
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    */
+  @Override
   public Object executeOn(Connection con, Op op) {
     authenticateIfRequired(con.getServer(), op);
     return executor.executeOn(con, op);
   }
 
+  @Override
   public Object executeOn(Connection con, Op op, boolean timeoutFatal) {
     return executor.executeOn(con, op, timeoutFatal);
   }
@@ -821,11 +860,13 @@ public class PoolImpl implements InternalPool {
    * @return the result of execution if any; null if not
    * @since GemFire 5.7
    */
+  @Override
   public Object executeOnQueuesAndReturnPrimaryResult(Op op) {
     authenticateOnAllServers(op);
     return executor.executeOnQueuesAndReturnPrimaryResult(op);
   }
 
+  @Override
   public void executeOnAllQueueServers(Op op)
       throws NoSubscriptionServersAvailableException, SubscriptionNotEnabledException {
     authenticateOnAllServers(op);
@@ -838,18 +879,22 @@ public class PoolImpl implements InternalPool {
    * @param op the operation to execute
    * @return the result of execution if any; null if not
    */
+  @Override
   public Object executeOnPrimary(Op op) {
     return executor.executeOnPrimary(op);
   }
 
+  @Override
   public Map<ServerLocation, Endpoint> getEndpointMap() {
     return endpointManager.getEndpointMap();
   }
 
+  @Override
   public ScheduledExecutorService getBackgroundProcessor() {
     return backgroundProcessor;
   }
 
+  @Override
   public RegisterInterestTracker getRITracker() {
     return this.riTracker;
   }
@@ -987,6 +1032,7 @@ public class PoolImpl implements InternalPool {
 
   }
 
+  @Override
   public boolean isDurableClient() {
     boolean isDurable = false;
     DistributionConfig config = dsys.getConfig();
@@ -1101,7 +1147,10 @@ public class PoolImpl implements InternalPool {
    *
    * @since GemFire 5.7
    */
+  @MakeNotStatic
   private final AtomicInteger attachCount = new AtomicInteger();
+
+  @MutableForTesting
   public static volatile boolean IS_INSTANTIATOR_CALLBACK = false;
 
   /**
@@ -1129,6 +1178,7 @@ public class PoolImpl implements InternalPool {
    *
    * @since GemFire 5.7
    */
+  @Override
   public void detach() {
     this.attachCount.getAndDecrement();
   }
@@ -1170,6 +1220,7 @@ public class PoolImpl implements InternalPool {
     return result;
   }
 
+  @Override
   public EndpointManager getEndpointManager() {
     return endpointManager;
   }
@@ -1235,10 +1286,12 @@ public class PoolImpl implements InternalPool {
     executor.setThreadLocalConnection(conn);
   }
 
+  @Override
   public ServerLocation getServerAffinityLocation() {
     return executor.getServerAffinityLocation();
   }
 
+  @Override
   public void setServerAffinityLocation(ServerLocation serverLocation) {
     executor.setServerAffinityLocation(serverLocation);
   }
@@ -1265,45 +1318,54 @@ public class PoolImpl implements InternalPool {
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean AFTER_PRIMARY_IDENTIFICATION_FROM_BACKUP_CALLBACK_FLAG = false;
 
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean BEFORE_REGISTER_CALLBACK_FLAG = false;
 
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean BEFORE_RECOVER_INTEREST_CALLBACK_FLAG = false;
 
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean AFTER_REGISTER_CALLBACK_FLAG = false;
 
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean BEFORE_PRIMARY_IDENTIFICATION_FROM_BACKUP_CALLBACK_FLAG = false;
 
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean BEFORE_SENDING_CLIENT_ACK_CALLBACK_FLAG = false;
   /**
    * A debug flag used for testing used in ClientServerObserver
    */
+  @MutableForTesting
   public static volatile boolean AFTER_QUEUE_DESTROY_MESSAGE_FLAG = false;
 
   /**
    * Test hook flag to notify observer(s) that a primary is recovered either from a backup or from a
    * new connection.
    */
+  @MutableForTesting
   public static volatile boolean AFTER_PRIMARY_RECOVERED_CALLBACK_FLAG = false;
 
   public abstract static class PoolTask implements Runnable {
 
+    @Override
     public void run() {
       try {
         run2();
@@ -1386,6 +1448,7 @@ public class PoolImpl implements InternalPool {
    *
    * @return the QueryService
    */
+  @Override
   public QueryService getQueryService() {
     DefaultQueryService queryService = new DefaultQueryService(cache);
     queryService.setPool(this);
@@ -1446,6 +1509,7 @@ public class PoolImpl implements InternalPool {
     return null;
   }
 
+  @Override
   public String getPoolOrCacheCancelInProgress() {
     String reason = null;
     try {
@@ -1480,6 +1544,7 @@ public class PoolImpl implements InternalPool {
     }
   }
 
+  @Override
   public boolean getKeepAlive() {
     if (cache == null) {
       return keepAlive;
@@ -1567,6 +1632,7 @@ public class PoolImpl implements InternalPool {
     this.primaryQueueSize.set(count);
   }
 
+  @Override
   public int getPendingEventCount() {
     if (!isDurableClient() || this.queueManager == null) {
       throw new IllegalStateException(

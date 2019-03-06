@@ -25,12 +25,16 @@ import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -55,7 +59,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
   private static final Logger logger = LogService.getLogger();
 
   /** turns on very verbose logging ove membership id bytes */
-  private static boolean LOG_ID_BYTES =
+  private static final boolean LOG_ID_BYTES =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "log-event-member-id-bytes");
 
   /**
@@ -82,10 +86,11 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
   }
 
   /** The versions in which this message was modified */
+  @Immutable
   private static final Version[] dsfidVersions = new Version[] {Version.GFE_80};
 
 
-  private static ThreadLocal threadIDLocal = new ThreadLocal() {
+  private static final ThreadLocal threadIDLocal = new ThreadLocal() {
     @Override
     protected Object initialValue() {
       return new ThreadAndSequenceIDWrapper();
@@ -97,26 +102,31 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
   /**
    * the distributed system associated with the static client_side_event_identity
    */
+  @MakeNotStatic
   private static volatile DistributedSystem system = null;
 
   /**
    * the membership id of the distributed system in this client (if running in a client) that is
    * reflected in client_side_event_identity
    */
+  @MakeNotStatic
   private static DistributedMember systemMemberId;
 
   /**
    * this form of client ID is used in event identifiers to reduce the size of the ID
    */
+  @MakeNotStatic
   private static volatile byte[] client_side_event_identity = null;
 
   /**
    * An array containing the helper class objects which are used to create optimized byte array for
    * an eventID , which can be sent on the network
    */
-  static AbstractEventIDByteArrayFiller[] fillerArray = new AbstractEventIDByteArrayFiller[] {
-      new ByteEventIDByteArrayFiller(), new ShortEventIDByteArrayFiller(),
-      new IntegerEventIDByteArrayFiller(), new LongEventIDByteArrayFiller()};
+  @Immutable
+  static final List<AbstractEventIDByteArrayFiller> fillerArray =
+      Collections.unmodifiableList(Arrays.asList(
+          new ByteEventIDByteArrayFiller(), new ShortEventIDByteArrayFiller(),
+          new IntegerEventIDByteArrayFiller(), new LongEventIDByteArrayFiller()));
 
   /**
    * Constructor used for creating EventID object at the actual source of creation of Event. The
@@ -302,7 +312,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
   public InternalDistributedMember getDistributedMember(Version targetVersion) {
     ByteArrayInputStream bais = new ByteArrayInputStream(this.membershipID);
     DataInputStream dis = new DataInputStream(bais);
-    if (targetVersion.compareTo(Version.GEODE_110) < 0) {
+    if (targetVersion.compareTo(Version.GEODE_1_1_0) < 0) {
       // GEODE-3153: clients expect to receive UUID bytes, which are only
       // read if the stream's version is 1.0.0-incubating
       dis = new VersionedDataInputStream(dis, Version.GFE_90);
@@ -332,17 +342,19 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
     return getOptimizedByteArrayForEventID(getThreadID(), getSequenceID());
   }
 
+  @Override
   public int getDSFID() {
     return EVENT_ID;
   }
 
+  @Override
   public void toData(DataOutput dop) throws IOException {
     Version version = InternalDataSerializer.getVersionForDataStream(dop);
     // if we are sending to old clients we need to reserialize the ID
     // using the client's version to ensure it gets the proper on-wire form
     // of the identifier
     // See GEODE-3072
-    if (version.compareTo(Version.GEODE_110) < 0) {
+    if (version.compareTo(Version.GEODE_1_1_0) < 0) {
       InternalDistributedMember member = getDistributedMember(Version.GFE_90);
       // reserialize with the client's version so that we write the UUID
       // bytes
@@ -364,6 +376,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
         dop);
   }
 
+  @Override
   public void fromData(DataInput di) throws IOException, ClassNotFoundException {
     this.membershipID = DataSerializer.readByteArray(di);
     ByteBuffer eventIdParts = ByteBuffer.wrap(DataSerializer.readByteArray(di));
@@ -380,6 +393,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
     this.sequenceID = readEventIdPartsFromOptmizedByteArray(eventIdParts);
   }
 
+  @Override
   public void writeExternal(ObjectOutput out) throws IOException {
     DataSerializer.writeByteArray(this.membershipID, out);
     DataSerializer.writeByteArray(getOptimizedByteArrayForEventID(this.threadID, this.sequenceID),
@@ -387,6 +401,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
     out.writeInt(this.bucketID);
   }
 
+  @Override
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
     this.membershipID = DataSerializer.readByteArray(in);
     ByteBuffer eventIdParts = ByteBuffer.wrap(DataSerializer.readByteArray(in));
@@ -615,8 +630,8 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
 
     int byteBufferLength = 2 + threadIdLength + sequenceIdLength;
     ByteBuffer buffer = ByteBuffer.allocate(byteBufferLength);
-    fillerArray[threadIdIndex].fill(buffer, threadId);
-    fillerArray[sequenceIdIndex].fill(buffer, sequenceId);
+    fillerArray.get(threadIdIndex).fill(buffer, threadId);
+    fillerArray.get(sequenceIdIndex).fill(buffer, sequenceId);
     return buffer.array();
 
   }
@@ -631,7 +646,7 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
    */
   public static long readEventIdPartsFromOptmizedByteArray(ByteBuffer buffer) {
     byte byteType = buffer.get();
-    long id = fillerArray[byteType].read(buffer);
+    long id = fillerArray.get(byteType).read(buffer);
 
     return id;
   }
@@ -799,7 +814,8 @@ public class EventID implements DataSerializableFixedID, Serializable, Externali
 
     long sequenceID = (HARegionQueue.INIT_OF_SEQUENCEID + 1);
 
-    private static AtomicLong atmLong = new AtomicLong(0);
+    @MakeNotStatic
+    private static final AtomicLong atmLong = new AtomicLong(0);
 
     ThreadAndSequenceIDWrapper() {
       threadID = atmLong.incrementAndGet();

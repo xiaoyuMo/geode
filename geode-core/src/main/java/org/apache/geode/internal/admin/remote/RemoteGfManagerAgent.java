@@ -39,6 +39,7 @@ import org.apache.geode.IncompatibleSystemException;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.admin.OperationCancelledException;
 import org.apache.geode.admin.RuntimeAdminException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -179,6 +180,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   /**
    * Safe to read, updates controlled by {@link #enumerationSync}
    */
+  @MakeNotStatic
   private static volatile ArrayList allAgents = new ArrayList();
 
   private static void addAgent(RemoteGfManagerAgent toAdd) {
@@ -200,6 +202,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   /**
    * break any potential circularity in {@link #loadEmergencyClasses()}
    */
+  @MakeNotStatic
   private static volatile boolean emergencyClassesLoaded = false;
 
   /**
@@ -418,6 +421,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
     return true;
   }
 
+  @Override
   public boolean isListening() {
     return listening;
   }
@@ -428,14 +432,17 @@ class RemoteGfManagerAgent implements GfManagerAgent {
    *
    * @since GemFire 4.0
    */
+  @Override
   public boolean isInitialized() {
     return this.initialized;
   }
 
+  @Override
   public boolean isConnected() {
     return this.connected && system != null && system.isConnected();
   }
 
+  @Override
   public ApplicationVM[] listApplications() {
     return listApplications(false);
   }
@@ -483,6 +490,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
     }
   }
 
+  @Override
   public GfManagerAgent[] listPeers() {
     return new GfManagerAgent[0];
   }
@@ -491,6 +499,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
    * Registers a <code>JoinLeaveListener</code>. on this agent that is notified when membership in
    * the distributed system changes.
    */
+  @Override
   public void addJoinLeaveListener(JoinLeaveListener observer) {
     synchronized (this.listenersLock) {
       final Set oldListeners = this.listeners;
@@ -505,6 +514,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   /**
    * Deregisters a <code>JoinLeaveListener</code> from this agent.
    */
+  @Override
   public void removeJoinLeaveListener(JoinLeaveListener observer) {
     synchronized (this.listenersLock) {
       final Set oldListeners = this.listeners;
@@ -520,6 +530,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   /**
    * Sets the <code>CacheCollector</code> that <code>CacheSnapshot</code>s are delivered to.
    */
+  @Override
   public synchronized void setCacheCollector(CacheCollector collector) {
     this.collector = collector;
   }
@@ -531,7 +542,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   }
 
   /** Is this thread currently sending a message? */
-  private static ThreadLocal sending = new ThreadLocal() {
+  private static final ThreadLocal sending = new ThreadLocal() {
     @Override
     protected Object initialValue() {
       return Boolean.FALSE;
@@ -634,6 +645,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
         if (this.abortCurrentJoin)
           return null;
         future = new FutureTask(new Callable() {
+          @Override
           public Object call() throws Exception {
             // Do this work in a Future to avoid deadlock seen in
             // bug 31562.
@@ -823,6 +835,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
             RemoteGfManagerAgent.this);
       }
 
+      @Override
       public void onDisconnect(InternalDistributedSystem sys) {
         // Before the disconnect handler is called, the InternalDistributedSystem has already marked
         // itself for
@@ -843,8 +856,10 @@ class RemoteGfManagerAgent implements GfManagerAgent {
       }
     });
     InternalDistributedSystem.addReconnectListener(new ReconnectListener() {
+      @Override
       public void reconnecting(InternalDistributedSystem oldsys) {}
 
+      @Override
       public void onReconnect(InternalDistributedSystem oldsys, InternalDistributedSystem newsys) {
         if (logger.isDebugEnabled()) {
           logger
@@ -1010,6 +1025,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
     }
   } // end SnapshotResultDispatcher
 
+  @Override
   public DistributionManager getDM() {
     InternalDistributedSystem sys = this.system;
     if (sys == null) {
@@ -1034,6 +1050,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
    * Sets the alert level for this manager agent. Sends a {@link AlertLevelChangeMessage} to each
    * member of the distributed system.
    */
+  @Override
   public void setAlertLevel(int level) {
     this.alertLevel = level;
     AlertLevelChangeMessage m = AlertLevelChangeMessage.create(level);
@@ -1043,6 +1060,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
   /**
    * Returns the distributed system administered by this agent.
    */
+  @Override
   public InternalDistributedSystem getDSConnection() {
     return this.system;
   }
@@ -1355,6 +1373,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
      *
      * @see JoinLeaveListener#nodeJoined
      */
+    @Override
     public void memberJoined(DistributionManager distributionManager,
         final InternalDistributedMember id) {
       if (!isListening()) {
@@ -1369,9 +1388,11 @@ class RemoteGfManagerAgent implements GfManagerAgent {
       }
     }
 
+    @Override
     public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
         InternalDistributedMember whoSuspected, String reason) {}
 
+    @Override
     public void quorumLost(DistributionManager distributionManager,
         Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
@@ -1382,6 +1403,7 @@ class RemoteGfManagerAgent implements GfManagerAgent {
      * @see JoinLeaveListener#nodeCrashed
      * @see JoinLeaveListener#nodeLeft
      */
+    @Override
     public void memberDeparted(DistributionManager distributionManager,
         InternalDistributedMember id, boolean crashed) {
       synchronized (this) {

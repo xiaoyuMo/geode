@@ -19,6 +19,7 @@ import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.Role;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -52,6 +53,7 @@ public class InternalRole implements Role {
   private final String name;
 
   /** Static canonical instances of roles. key=name, value=InternalRole */
+  @MakeNotStatic
   private static final Map roles = new HashMap(); // could use ConcurrentHashMap
 
   /** Contructs a new InternalRole instance for the specified role name */
@@ -59,6 +61,7 @@ public class InternalRole implements Role {
     this.name = name;
   }
 
+  @Override
   public String getName() {
     return this.name;
   }
@@ -73,6 +76,7 @@ public class InternalRole implements Role {
    * @exception java.lang.ClassCastException if the specified object's type prevents it from being
    *            compared to this Object.
    */
+  @Override
   public int compareTo(Role o) {
     if ((o == null) || !(o instanceof InternalRole)) {
       throw new ClassCastException(
@@ -135,6 +139,7 @@ public class InternalRole implements Role {
     }
   }
 
+  @Override
   public boolean isPresent() {
     InternalDistributedSystem sys = InternalDistributedSystem.getAnyInstance();
     if (sys == null) {
@@ -145,6 +150,7 @@ public class InternalRole implements Role {
     return dm.isRolePresent(this);
   }
 
+  @Override
   public int getCount() {
     InternalDistributedSystem sys = InternalDistributedSystem.getAnyInstance();
     if (sys == null) {

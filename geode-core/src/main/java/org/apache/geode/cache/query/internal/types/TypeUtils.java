@@ -16,12 +16,14 @@ package org.apache.geode.cache.query.internal.types;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.geode.InternalGemFireError;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.query.QueryService;
 import org.apache.geode.cache.query.TypeMismatchException;
@@ -42,17 +44,23 @@ import org.apache.geode.pdx.internal.PdxString;
  */
 
 public class TypeUtils implements OQLLexerTokenTypes {
-  protected static List<Class> _numericPrimitiveClasses = Arrays.asList(
-      new Class[] {Byte.TYPE, Short.TYPE, Integer.TYPE, Long.TYPE, Float.TYPE, Double.TYPE});
+  @Immutable
+  protected static final List<Class> _numericPrimitiveClasses =
+      Collections.unmodifiableList(Arrays.asList(
+          new Class[] {Byte.TYPE, Short.TYPE, Integer.TYPE, Long.TYPE, Float.TYPE, Double.TYPE}));
 
-  protected static List<Class> _numericWrapperClasses = Arrays.asList(
-      new Class[] {Byte.class, Short.class, Integer.class, Long.class, Float.class, Double.class});
+  @Immutable
+  protected static final List<Class> _numericWrapperClasses =
+      Collections.unmodifiableList(Arrays.asList(
+          new Class[] {Byte.class, Short.class, Integer.class, Long.class, Float.class,
+              Double.class}));
 
   /**
    * Enum to execute comparisons based on types.
    */
   private enum ComparisonStrategy {
     TEMPORAL {
+      @Override
       public Boolean execute(Object object1, Object object2, int comparator)
           throws ClassCastException {
         return applyComparator(getTemporalComparator().compare(object1, object2), comparator);
@@ -60,6 +68,7 @@ public class TypeUtils implements OQLLexerTokenTypes {
     },
 
     NUMERIC {
+      @Override
       public Boolean execute(Object object1, Object object2, int comparator)
           throws ClassCastException {
         return applyComparator(getNumericComparator().compare(object1, object2), comparator);
@@ -67,6 +76,7 @@ public class TypeUtils implements OQLLexerTokenTypes {
     },
 
     BOOLEAN {
+      @Override
       public Boolean execute(Object object1, Object object2, int comparator)
           throws TypeMismatchException {
         return booleanCompare(object1, object2, comparator);
@@ -74,6 +84,7 @@ public class TypeUtils implements OQLLexerTokenTypes {
     },
 
     COMPARABLE {
+      @Override
       public Boolean execute(Object object1, Object object2, int comparator)
           throws ClassCastException {
         return applyComparator(((Comparable) object1).compareTo(object2), comparator);
@@ -81,6 +92,7 @@ public class TypeUtils implements OQLLexerTokenTypes {
     },
 
     ARBITRARY {
+      @Override
       public Boolean execute(Object object1, Object object2, int comparator) {
         if (comparator == TOK_EQ) {
           return object1.equals(object2);
@@ -145,6 +157,7 @@ public class TypeUtils implements OQLLexerTokenTypes {
 
   /* Common Types */
   /** ObjectType for Object.class */
+  @Immutable
   public static final ObjectType OBJECT_TYPE = new ObjectTypeImpl(Object.class);
 
   /** prevent instantiation */

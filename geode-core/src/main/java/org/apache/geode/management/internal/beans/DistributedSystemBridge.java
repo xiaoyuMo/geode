@@ -40,6 +40,7 @@ import javax.management.ObjectName;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
@@ -190,7 +191,8 @@ public class DistributedSystemBridge {
   /**
    * Static reference to the platform mbean server
    */
-  private static MBeanServer mbeanServer = MBeanJMXAdapter.mbeanServer;
+  @MakeNotStatic
+  private static final MBeanServer mbeanServer = MBeanJMXAdapter.mbeanServer;
 
   /**
    * emitter is a helper class for sending notifications on behalf of the MemberMBean
@@ -820,18 +822,18 @@ public class DistributedSystemBridge {
    * @return a list of region names hosted on the system
    */
   public String[] listAllRegions() {
-    Iterator<DistributedRegionBridge> it = distrRegionMap.values().iterator();
     if (distrRegionMap.values().size() == 0) {
       return ManagementConstants.NO_DATA_STRING;
     }
-    String[] listOfRegions = new String[distrRegionMap.values().size()];
-    int j = 0;
+
+    List<String> listOfRegions = new ArrayList<>();
+    Iterator<DistributedRegionBridge> it = distrRegionMap.values().iterator();
     while (it.hasNext()) {
       DistributedRegionBridge bridge = it.next();
-      listOfRegions[j] = bridge.getName();
-      j++;
+      listOfRegions.add(bridge.getName());
     }
-    return listOfRegions;
+
+    return listOfRegions.toArray(new String[listOfRegions.size()]);
   }
 
   /**
@@ -882,7 +884,7 @@ public class DistributedSystemBridge {
    * @return Array of PersistentMemberDetails (which contains host, directory and disk store id)
    */
   public PersistentMemberDetails[] listMissingDiskStores() {
-    PersistentMemberDetails[] missingDiskStores = null;
+    PersistentMemberDetails[] missingDiskStores = new PersistentMemberDetails[0];
 
     // No need to try and send anything if we're a Loner
     if (dm.isLoner()) {
@@ -890,7 +892,7 @@ public class DistributedSystemBridge {
     }
 
     Set<PersistentID> persistentMemberSet = MissingPersistentIDsRequest.send(dm);
-    if (persistentMemberSet != null && persistentMemberSet.size() > 0) {
+    if (persistentMemberSet != null) {
       missingDiskStores = new PersistentMemberDetails[persistentMemberSet.size()];
       int j = 0;
       for (PersistentID id : persistentMemberSet) {
@@ -1585,23 +1587,29 @@ public class DistributedSystemBridge {
 
   public void memberDeparted(InternalDistributedMember id, boolean crashed) {
     Notification notification = new Notification(JMXNotificationType.CACHE_MEMBER_DEPARTED,
-        MBeanJMXAdapter.getMemberNameOrId(id), SequenceNumber.next(), System.currentTimeMillis(),
-        ManagementConstants.CACHE_MEMBER_DEPARTED_PREFIX + MBeanJMXAdapter.getMemberNameOrId(id)
+        MBeanJMXAdapter.getMemberNameOrUniqueId(id), SequenceNumber.next(),
+        System.currentTimeMillis(),
+        ManagementConstants.CACHE_MEMBER_DEPARTED_PREFIX
+            + MBeanJMXAdapter.getMemberNameOrUniqueId(id)
             + " has crashed = " + crashed);
     systemLevelNotifEmitter.sendNotification(notification);
   }
 
   public void memberJoined(InternalDistributedMember id) {
     Notification notification = new Notification(JMXNotificationType.CACHE_MEMBER_JOINED,
-        MBeanJMXAdapter.getMemberNameOrId(id), SequenceNumber.next(), System.currentTimeMillis(),
-        ManagementConstants.CACHE_MEMBER_JOINED_PREFIX + MBeanJMXAdapter.getMemberNameOrId(id));
+        MBeanJMXAdapter.getMemberNameOrUniqueId(id), SequenceNumber.next(),
+        System.currentTimeMillis(),
+        ManagementConstants.CACHE_MEMBER_JOINED_PREFIX
+            + MBeanJMXAdapter.getMemberNameOrUniqueId(id));
     systemLevelNotifEmitter.sendNotification(notification);
   }
 
   public void memberSuspect(InternalDistributedMember id, InternalDistributedMember whoSuspected) {
     Notification notification = new Notification(JMXNotificationType.CACHE_MEMBER_SUSPECT,
-        MBeanJMXAdapter.getMemberNameOrId(id), SequenceNumber.next(), System.currentTimeMillis(),
-        ManagementConstants.CACHE_MEMBER_SUSPECT_PREFIX + MBeanJMXAdapter.getMemberNameOrId(id)
+        MBeanJMXAdapter.getMemberNameOrUniqueId(id), SequenceNumber.next(),
+        System.currentTimeMillis(),
+        ManagementConstants.CACHE_MEMBER_SUSPECT_PREFIX
+            + MBeanJMXAdapter.getMemberNameOrUniqueId(id)
             + " By : " + whoSuspected.getName());
     systemLevelNotifEmitter.sendNotification(notification);
   }

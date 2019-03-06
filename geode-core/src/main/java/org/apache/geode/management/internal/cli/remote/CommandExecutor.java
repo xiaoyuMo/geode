@@ -31,11 +31,11 @@ import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.cli.SingleGfshCommand;
 import org.apache.geode.management.cli.UpdateAllConfigurationGroupsMarker;
 import org.apache.geode.management.internal.cli.GfshParseResult;
-import org.apache.geode.management.internal.cli.exceptions.EntityNotFoundException;
 import org.apache.geode.management.internal.cli.exceptions.UserErrorException;
 import org.apache.geode.management.internal.cli.result.model.InfoResultModel;
 import org.apache.geode.management.internal.cli.result.model.ResultModel;
 import org.apache.geode.management.internal.cli.result.model.TabularResultModel;
+import org.apache.geode.management.internal.exceptions.EntityNotFoundException;
 import org.apache.geode.security.NotAuthorizedException;
 
 /**
@@ -133,7 +133,7 @@ public class CommandExecutor {
     // if command result is ok, we will need to see if we need to update cluster configuration
     InfoResultModel infoResultModel = resultModel.addInfo(ResultModel.INFO_SECTION);
     InternalConfigurationPersistenceService ccService =
-        (InternalConfigurationPersistenceService) gfshCommand.getConfigurationPersistenceService();
+        gfshCommand.getConfigurationPersistenceService();
     if (ccService == null) {
       infoResultModel.addLine(SERVICE_NOT_RUNNING_CHANGE_NOT_PERSISTED);
       return resultModel;
@@ -160,9 +160,9 @@ public class CommandExecutor {
 
     final TabularResultModel finalTable = table;
     for (String group : groupsToUpdate) {
-      ccService.updateCacheConfig(group, cc -> {
+      ccService.updateCacheConfig(group, cacheConfig -> {
         try {
-          if (gfshCommand.updateConfigForGroup(group, cc, resultModel.getConfigObject())) {
+          if (gfshCommand.updateConfigForGroup(group, cacheConfig, resultModel.getConfigObject())) {
             if (finalTable != null) {
               finalTable.addRow(group, "Cluster Configuration Updated");
             } else {
@@ -179,14 +179,15 @@ public class CommandExecutor {
             }
           }
         } catch (Exception e) {
-          String message = "failed to update cluster config for " + group;
+          String message = "Failed to update cluster config for " + group;
           logger.error(message, e);
           // for now, if one cc update failed, we will set this flag. Will change this when we can
           // add lines to the result returned by the command
           infoResultModel.addLine(message + ". Reason: " + e.getMessage());
           return null;
         }
-        return cc;
+
+        return cacheConfig;
       });
     }
 

@@ -22,6 +22,7 @@ import java.util.Properties;
 
 import org.junit.Test;
 
+import org.apache.geode.management.internal.configuration.domain.DeclarableTypeInstantiator;
 
 
 public class ClassNameTest {
@@ -36,13 +37,16 @@ public class ClassNameTest {
 
   @Test
   public void empty() {
-    assertThat(new ClassName("", "{}")).isEqualTo(new ClassName(" ", "{\"k\":\"v\"}"))
+    assertThat(new ClassName("", "{}"))
+        .isEqualTo(new ClassName(null, "{}"))
+        .isEqualTo(new ClassName(" ", "{\"k\":\"v\"}"))
         .isEqualTo(ClassName.EMPTY);
   }
 
   @Test
   public void emptyCanNotInstantiate() {
-    assertThatThrownBy(() -> ClassName.EMPTY.newInstance(null)).isInstanceOf(RuntimeException.class)
+    assertThatThrownBy(() -> DeclarableTypeInstantiator.newInstance(ClassName.EMPTY, null))
+        .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Error instantiating class");
   }
 
@@ -98,7 +102,7 @@ public class ClassNameTest {
   @Test
   public void getInstance() {
     ClassName<String> klass = new ClassName("java.lang.String");
-    String s = klass.newInstance(null);
+    String s = DeclarableTypeInstantiator.newInstance(klass, null);
     assertThat(s.toString()).isEqualTo("");
   }
 
@@ -106,7 +110,7 @@ public class ClassNameTest {
   public void getInstanceWithProps() {
     String json = "{\"k\":\"v\"}";
     ClassName<MyCacheWriter> cacheWriter = new ClassName<>(MyCacheWriter.class.getName(), json);
-    MyCacheWriter obj = cacheWriter.newInstance(null);
+    MyCacheWriter obj = DeclarableTypeInstantiator.newInstance(cacheWriter, null);
     assertThat(obj.getProperties()).containsEntry("k", "v").containsOnlyKeys("k");
   }
 }

@@ -31,11 +31,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.DSCODE;
 import org.apache.geode.internal.InternalDataSerializer;
-import org.apache.geode.internal.Sendable;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.tcp.ByteBufferInputStream;
@@ -55,14 +55,15 @@ import org.apache.geode.pdx.WritablePdxInstance;
  * We do not use this normal java io serialization when serializing this class in GemFire because
  * Sendable takes precedence over Serializable.
  */
-public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstance, Sendable {
+public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstance {
 
   private static final long serialVersionUID = -1669268527103938431L;
 
   private static final boolean USE_STATIC_MAPPER =
       Boolean.getBoolean("PdxInstance.use-static-mapper");
 
-  static final ObjectMapper mapper = USE_STATIC_MAPPER ? createObjectMapper() : null;
+  @Immutable
+  private static final ObjectMapper mapper = USE_STATIC_MAPPER ? createObjectMapper() : null;
 
   private static ObjectMapper createObjectMapper() {
     ObjectMapper mapper = new ObjectMapper();
@@ -186,7 +187,7 @@ public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstanc
     }
   }
 
-  // this is for internal use of the query engine.
+  @Override
   public Object getCachedObject() {
     Object result = this.cachedObjectForm;
     if (result == null) {
@@ -215,7 +216,7 @@ public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstanc
       // In case of Developer Rest APIs, All PdxInstances converted from Json will have a className
       // =__GEMFIRE_JSON.
       // Following code added to convert Json/PdxInstance into the Java object.
-      if (this.getClassName().equals("__GEMFIRE_JSON")) {
+      if (this.getClassName().equals(JSONFormatter.JSON_CLASSNAME)) {
 
         // introspect the JSON, does the @type meta-data exist.
         String className = extractTypeMetaData();
@@ -343,6 +344,9 @@ public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstanc
     SortedSet<PdxField> myFields = ur1.getPdxType().getSortedIdentityFields();
     SortedSet<PdxField> otherFields = ur2.getPdxType().getSortedIdentityFields();
     if (!myFields.equals(otherFields)) {
+      if (ur1.getPdxType().getClassName().isEmpty()) {
+        return false;
+      }
       // It is not ok to modify myFields and otherFields in place so make copies
       myFields = new TreeSet<PdxField>(myFields);
       otherFields = new TreeSet<PdxField>(otherFields);
@@ -652,20 +656,16 @@ public class PdxInstanceImpl extends PdxReaderImpl implements InternalPdxInstanc
     return false;
   }
 
+  @Override
   public Object getRawField(String fieldName) {
     return getUnmodifiableReader(fieldName).readRawField(fieldName);
   }
 
-  public Object getDefaultValueIfFieldExistsInAnyPdxVersions(String fieldName, String className)
-      throws FieldNotFoundInPdxVersion {
-    PdxType pdxType =
-        GemFireCacheImpl.getForPdx("PDX registry is unavailable because the Cache has been closed.")
-            .getPdxRegistry().getPdxTypeForField(fieldName, className);
-    if (pdxType == null) {
-      throw new FieldNotFoundInPdxVersion(
-          "PdxType with field " + fieldName + " is not found for class " + className);
+  @Override
+  public boolean isDeserializable() {
+    if (this.getClassName().equals(JSONFormatter.JSON_CLASSNAME)) {
+      return true;
     }
-    return pdxType.getPdxField(fieldName).getFieldType().getDefaultValue();
+    return !getPdxType().getNoDomainClass();
   }
-
 }

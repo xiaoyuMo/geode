@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.InvalidVersionException;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.DataPolicy;
@@ -47,6 +48,7 @@ import org.apache.geode.internal.logging.LogService;
 public abstract class AbstractUpdateOperation extends DistributedCacheOperation {
   private static final Logger logger = LogService.getLogger();
 
+  @MutableForTesting
   public static volatile boolean test_InvalidVersion;
 
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(
@@ -98,6 +100,25 @@ public abstract class AbstractUpdateOperation extends DistributedCacheOperation 
     }
   }
 
+  private static boolean checkIfToUpdateAfterCreateFailed(LocalRegion rgn, EntryEventImpl ev) {
+    // Try to create is failed due to found the entry exist, double check if should update
+    boolean doUpdate = true;
+    if (ev.oldValueIsDestroyedToken()) {
+      if (rgn.getVersionVector() != null && ev.getVersionTag() != null) {
+        rgn.getVersionVector().recordVersion(
+            (InternalDistributedMember) ev.getDistributedMember(), ev.getVersionTag());
+      }
+      doUpdate = false;
+    }
+    if (ev.isConcurrencyConflict()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("basicUpdate failed with CME, not to retry:" + ev);
+      }
+      doUpdate = false;
+    }
+    return doUpdate;
+  }
+
   /**
    * Does a remote update (could be create or put). This code was factored into a static for
    * QueuedOperation.
@@ -134,13 +155,7 @@ public abstract class AbstractUpdateOperation extends DistributedCacheOperation 
             updated = true;
           } else { // already exists. If it was blocked by the DESTROYED token, then
             // do no update.
-            if (ev.oldValueIsDestroyedToken()) {
-              if (rgn.getVersionVector() != null && ev.getVersionTag() != null) {
-                rgn.getVersionVector().recordVersion(
-                    (InternalDistributedMember) ev.getDistributedMember(), ev.getVersionTag());
-              }
-              doUpdate = false;
-            }
+            doUpdate = checkIfToUpdateAfterCreateFailed(rgn, ev);
           }
         } finally {
           if (isBucket) {
@@ -174,7 +189,7 @@ public abstract class AbstractUpdateOperation extends DistributedCacheOperation 
                   || (rgn.getDataPolicy().withReplication() && rgn.getConcurrencyChecksEnabled())) {
                 overwriteDestroyed = true;
                 ev.makeCreate();
-                rgn.basicUpdate(ev, true /* ifNew */, false/* ifOld */, lastMod,
+                rgn.basicUpdate(ev, false /* ifNew */, false/* ifOld */, lastMod,
                     overwriteDestroyed);
                 rgn.getCachePerfStats().endPut(startPut, ev.isOriginRemote());
                 updated = true;

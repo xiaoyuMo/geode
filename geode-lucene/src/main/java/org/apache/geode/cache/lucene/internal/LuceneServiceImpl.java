@@ -113,6 +113,7 @@ public class LuceneServiceImpl implements InternalLuceneService {
     return this.cache;
   }
 
+  @Override
   public void init(final Cache cache) {
     if (cache == null) {
       throw new IllegalStateException("cache is null");
@@ -642,6 +643,7 @@ public class LuceneServiceImpl implements InternalLuceneService {
     return definedIndexMap.get(getUniqueIndexName(indexName, regionPath));
   }
 
+  @Override
   public boolean waitUntilFlushed(String indexName, String regionPath, long timeout, TimeUnit unit)
       throws InterruptedException {
     Region dataRegion = this.cache.getRegion(regionPath);
@@ -663,6 +665,7 @@ public class LuceneServiceImpl implements InternalLuceneService {
     return true;
   }
 
+  @Override
   public boolean isIndexingInProgress(String indexName, String regionPath) {
     Region region = this.cache.getRegion(regionPath);
     if (region == null) {
@@ -703,7 +706,7 @@ public class LuceneServiceImpl implements InternalLuceneService {
   private boolean isAnyRemoteMemberVersionLessThanGeode1_7_0(
       Set<InternalDistributedMember> remoteMembers) {
     for (InternalDistributedMember remoteMember : remoteMembers) {
-      if (remoteMember.getVersionObject().ordinal() < Version.GEODE_170.ordinal()) {
+      if (remoteMember.getVersionObject().ordinal() < Version.GEODE_1_7_0.ordinal()) {
         return true;
       }
     }

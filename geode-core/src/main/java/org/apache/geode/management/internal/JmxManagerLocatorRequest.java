@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Properties;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.tcpserver.LocatorCancelException;
 import org.apache.geode.distributed.internal.tcpserver.TcpClient;
 import org.apache.geode.internal.DataSerializableFixedID;
@@ -39,10 +40,13 @@ import org.apache.geode.internal.security.SecurableCommunicationChannel;
  */
 public class JmxManagerLocatorRequest implements DataSerializableFixedID {
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {}
 
+  @Override
   public void toData(DataOutput out) throws IOException {}
 
+  @Override
   public int getDSFID() {
     return DataSerializableFixedID.JMX_MANAGER_LOCATOR_REQUEST;
   }
@@ -52,6 +56,7 @@ public class JmxManagerLocatorRequest implements DataSerializableFixedID {
     return "JmxManagerLocatorRequest";
   }
 
+  @Immutable
   private static final JmxManagerLocatorRequest SINGLETON = new JmxManagerLocatorRequest();
 
   /**

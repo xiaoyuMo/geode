@@ -14,6 +14,8 @@
  */
 package org.apache.geode.connectors.jdbc.internal.cli;
 
+import static org.apache.geode.connectors.util.internal.MappingConstants.REGION_NAME;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -34,8 +36,11 @@ import org.apache.geode.cache.configuration.RegionConfig;
 import org.apache.geode.connectors.jdbc.JdbcLoader;
 import org.apache.geode.connectors.jdbc.JdbcWriter;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
+import org.apache.geode.connectors.util.internal.MappingCommandUtils;
+import org.apache.geode.distributed.ConfigurationPersistenceService;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.management.cli.CliMetaData;
+import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.SingleGfshCommand;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -46,32 +51,72 @@ import org.apache.geode.security.ResourcePermission;
 @Experimental
 public class DestroyMappingCommand extends SingleGfshCommand {
   static final String DESTROY_MAPPING = "destroy jdbc-mapping";
-  static final String DESTROY_MAPPING__HELP = EXPERIMENTAL + "Destroy the specified JDBC mapping.";
-  static final String DESTROY_MAPPING__REGION_NAME = "region";
-  static final String DESTROY_MAPPING__REGION_NAME__HELP =
+  private static final String DESTROY_MAPPING__HELP =
+      EXPERIMENTAL + "Destroy the specified JDBC mapping.";
+  private static final String DESTROY_MAPPING__REGION_NAME = REGION_NAME;
+  private static final String DESTROY_MAPPING__REGION_NAME__HELP =
       "Name of the region whose JDBC mapping will be destroyed.";
+  private static final String DESTROY_MAPPING__GROUPS_NAME__HELP =
+      "Server Group(s) of the JDBC mapping to be destroyed.";
 
   @CliCommand(value = DESTROY_MAPPING, help = DESTROY_MAPPING__HELP)
   @CliMetaData(relatedTopic = CliStrings.DEFAULT_TOPIC_GEODE)
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
       operation = ResourcePermission.Operation.MANAGE)
   public ResultModel destroyMapping(@CliOption(key = DESTROY_MAPPING__REGION_NAME, mandatory = true,
-      help = DESTROY_MAPPING__REGION_NAME__HELP) String regionName) {
+      help = DESTROY_MAPPING__REGION_NAME__HELP) String regionName,
+      @CliOption(key = {CliStrings.GROUP, CliStrings.GROUPS},
+          optionContext = ConverterHint.MEMBERGROUP,
+          help = DESTROY_MAPPING__GROUPS_NAME__HELP) String[] groups) {
     if (regionName.startsWith("/")) {
       regionName = regionName.substring(1);
     }
 
-    // input
-    Set<DistributedMember> targetMembers = getMembers(null, null);
+    Set<DistributedMember> targetMembers = findMembers(groups, null);
 
-    // action
-    List<CliFunctionResult> results =
-        executeAndGetFunctionResult(new DestroyMappingFunction(), regionName, targetMembers);
+    try {
+      boolean isMappingInClusterConfig = false;
+      ConfigurationPersistenceService configService = checkForClusterConfiguration();
 
-    ResultModel result =
-        ResultModel.createMemberStatusResult(results, EXPERIMENTAL, null, false, true);
-    result.setConfigObject(regionName);
-    return result;
+      if (groups == null) {
+        groups = new String[] {ConfigurationPersistenceService.CLUSTER_CONFIG};
+      }
+
+      for (String group : groups) {
+        CacheConfig cacheConfig = getCacheConfig(configService, group);
+        if (cacheConfig != null) {
+          for (RegionConfig regionConfig : cacheConfig.getRegions()) {
+            if (regionConfig != null && !MappingCommandUtils
+                .getMappingsFromRegionConfig(cacheConfig, regionConfig, group).isEmpty()) {
+              isMappingInClusterConfig = true;
+            }
+          }
+        }
+      }
+
+      if (!isMappingInClusterConfig) {
+        return ResultModel.createError("Mapping not found in cluster configuration.");
+      }
+
+      ResultModel result;
+      if (targetMembers != null) {
+        List<CliFunctionResult> results =
+            executeAndGetFunctionResult(new DestroyMappingFunction(), regionName, targetMembers);
+        result =
+            ResultModel.createMemberStatusResult(results, EXPERIMENTAL, null, false, true);
+      } else {
+        result = ResultModel.createInfo(
+            "No members found in specified server groups containing a mapping for region \""
+                + regionName + "\"");
+      }
+
+      result.setConfigObject(regionName);
+      return result;
+    } catch (PreconditionException ex) {
+      return ResultModel.createError(ex.getMessage());
+    }
+
+
   }
 
   @Override
@@ -122,7 +167,7 @@ public class DestroyMappingCommand extends SingleGfshCommand {
   }
 
   private boolean removeJdbcAsyncEventQueueId(RegionAttributesType attributes, String regionName) {
-    String queueName = CreateMappingCommand.createAsyncEventQueueName(regionName);
+    String queueName = MappingCommandUtils.createAsyncEventQueueName(regionName);
     String queueIds = attributes.getAsyncEventQueueIds();
     if (queueIds == null) {
       return false;
@@ -138,7 +183,7 @@ public class DestroyMappingCommand extends SingleGfshCommand {
   }
 
   private boolean removeJdbcQueueFromCache(CacheConfig cacheConfig, String regionName) {
-    String queueName = CreateMappingCommand.createAsyncEventQueueName(regionName);
+    String queueName = MappingCommandUtils.createAsyncEventQueueName(regionName);
     Iterator<AsyncEventQueue> iterator = cacheConfig.getAsyncEventQueues().iterator();
     while (iterator.hasNext()) {
       AsyncEventQueue queue = iterator.next();
@@ -165,6 +210,21 @@ public class DestroyMappingCommand extends SingleGfshCommand {
   private RegionConfig findRegionConfig(CacheConfig cacheConfig, String regionName) {
     return cacheConfig.getRegions().stream()
         .filter(region -> region.getName().equals(regionName)).findFirst().orElse(null);
+  }
+
+  private CacheConfig getCacheConfig(ConfigurationPersistenceService configService, String group)
+      throws PreconditionException {
+    CacheConfig result = configService.getCacheConfig(group);
+    return result;
+  }
+
+  protected ConfigurationPersistenceService checkForClusterConfiguration()
+      throws PreconditionException {
+    ConfigurationPersistenceService result = getConfigurationPersistenceService();
+    if (result == null) {
+      throw new PreconditionException("Cluster Configuration must be enabled.");
+    }
+    return result;
   }
 
   @CliAvailabilityIndicator({DESTROY_MAPPING})

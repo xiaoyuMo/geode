@@ -27,7 +27,9 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.persistence.ConflictingPersistentDataException;
@@ -53,8 +55,10 @@ import org.apache.geode.internal.util.TransformUtils;
 public class PersistenceAdvisorImpl implements InternalPersistenceAdvisor {
 
   private static final Logger logger = LogService.getLogger();
+  @Immutable
   private static final PersistenceAdvisorObserver DEFAULT_PERSISTENCE_ADVISOR_OBSERVER = s -> {
   };
+  @MutableForTesting
   private static PersistenceAdvisorObserver persistenceAdvisorObserver =
       DEFAULT_PERSISTENCE_ADVISOR_OBSERVER;
 
@@ -93,7 +97,7 @@ public class PersistenceAdvisorImpl implements InternalPersistenceAdvisor {
         diskRegionStats, persistentMemberManager, new PersistentStateQueryMessageSenderFactory());
   }
 
-  @TestingOnly
+  @VisibleForTesting
   PersistenceAdvisorImpl(CacheDistributionAdvisor cacheDistributionAdvisor,
       DistributedLockService distributedLockService, PersistentMemberView persistentMemberView,
       String regionPath, DiskRegionStats diskRegionStats,
@@ -810,6 +814,7 @@ public class PersistenceAdvisorImpl implements InternalPersistenceAdvisor {
     }
     synchronized (lock) {
       recoveredMembers.clear();
+      recoveredMembers.addAll(getPersistedMembers());
     }
   }
 
@@ -1213,18 +1218,6 @@ public class PersistenceAdvisorImpl implements InternalPersistenceAdvisor {
     @Override
     public boolean matches(PersistentMemberPattern pattern) {
       return pattern.matches(getPersistentID()) || pattern.matches(getInitializingID());
-    }
-
-    @Override
-    public void addPersistentIDs(Set<PersistentMemberID> localData) {
-      PersistentMemberID id = getPersistentID();
-      if (id != null) {
-        localData.add(id);
-      }
-      id = getInitializingID();
-      if (id != null) {
-        localData.add(id);
-      }
     }
   }
 }

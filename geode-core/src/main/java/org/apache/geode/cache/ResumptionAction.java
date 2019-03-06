@@ -19,6 +19,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.geode.annotations.Immutable;
+
 
 /**
  * Specifies how the region is affected by resumption of reliability when one or more missing
@@ -27,11 +29,13 @@ import java.util.List;
  *
  * @deprecated this API is scheduled to be removed
  */
+@Immutable
 public class ResumptionAction implements java.io.Serializable {
   private static final long serialVersionUID = 6632254151314915610L;
 
   /** No special action takes place when reliability resumes. */
-  public static final ResumptionAction NONE = new ResumptionAction("NONE");
+  @Immutable
+  public static final ResumptionAction NONE = new ResumptionAction("NONE", 0);
 
   /**
    * Resumption of reliability causes the region to be cleared of all data and
@@ -40,20 +44,20 @@ public class ResumptionAction implements java.io.Serializable {
    * subsequent methods invoked on those references will throw a
    * {@link RegionReinitializedException}.
    */
-  public static final ResumptionAction REINITIALIZE = new ResumptionAction("REINITIALIZE");
+  @Immutable
+  public static final ResumptionAction REINITIALIZE = new ResumptionAction("REINITIALIZE", 1);
 
   /** The name of this mirror type. */
   private final transient String name;
 
-  // The 4 declarations below are necessary for serialization
   /** byte used as ordinal to represent this Scope */
-  public final byte ordinal = nextOrdinal++;
+  public final byte ordinal;
 
-  private static byte nextOrdinal = 0;
-
+  @Immutable
   private static final ResumptionAction[] PRIVATE_VALUES = {NONE, REINITIALIZE};
 
   /** List of all ResumptionAction values */
+  @Immutable
   public static final List VALUES = Collections.unmodifiableList(Arrays.asList(PRIVATE_VALUES));
 
   private Object readResolve() throws ObjectStreamException {
@@ -61,8 +65,9 @@ public class ResumptionAction implements java.io.Serializable {
   }
 
   /** Creates a new instance of ResumptionAction. */
-  private ResumptionAction(String name) {
+  private ResumptionAction(String name, int ordinal) {
     this.name = name;
+    this.ordinal = (byte) ordinal;
   }
 
   /** Return the ResumptionAction represented by specified ordinal */

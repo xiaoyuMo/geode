@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.Cache;
@@ -130,6 +131,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
   public static final int DEFAULT_MESSAGE_SYNC_INTERVAL = 10;
 
   // TODO:REF: how to change the message sync interval ? should it be common for serial and parallel
+  @MutableForTesting
   protected static volatile int messageSyncInterval = DEFAULT_MESSAGE_SYNC_INTERVAL;
 
   // TODO:REF: name change for thread, as it appears in the log
@@ -182,6 +184,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
       this.bucketId = bId;
     }
 
+    @Override
     public void run() {
       PartitionedRegion prQ = null;
       GatewaySenderEventImpl event = (GatewaySenderEventImpl) conflatableObject;
@@ -645,6 +648,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     }
   }
 
+  @Override
   public boolean put(Object object) throws InterruptedException, CacheException {
     final boolean isDebugEnabled = logger.isDebugEnabled();
     boolean putDone = false;
@@ -871,6 +875,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
    * This returns queueRegion if there is only one PartitionedRegion using the GatewaySender
    * Otherwise it returns null.
    */
+  @Override
   public Region getRegion() {
     return this.userRegionNameToshadowPRMap.size() == 1
         ? (Region) this.userRegionNameToshadowPRMap.values().toArray()[0] : null;
@@ -1033,7 +1038,6 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
   }
 
   private void destroyEventFromQueue(PartitionedRegion prQ, int bucketId, Object key) {
-    boolean isPrimary = prQ.getRegionAdvisor().getBucketAdvisor(bucketId).isPrimary();
     BucketRegionQueue brq = getBucketRegionQueueByBucketId(prQ, bucketId);
     // TODO : Make sure we dont need to initalize a bucket
     // before destroying a key from it
@@ -1191,10 +1195,12 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
     bucketIdToDispatchedKeys.put(bucketId, dispatchedKeys);
   }
 
+  @Override
   public List peek(int batchSize) throws InterruptedException, CacheException {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public List peek(int batchSize, int timeToWait) throws InterruptedException, CacheException {
     final boolean isDebugEnabled = logger.isDebugEnabled();
 
@@ -1272,7 +1278,7 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
         }
         // Sleep a bit before trying again.
         try {
-          Thread.sleep(50);
+          Thread.sleep(getTimeToSleep(end - currentTime));
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           break;
@@ -1288,6 +1294,23 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
       blockProcessorThreadIfRequired();
     }
     return batch;
+  }
+
+  private long getTimeToSleep(long timeToWait) {
+    // Get the minimum of 50 and 5% of the time to wait (which by default is 1000 ms)
+    long timeToSleep = Math.min(50l, ((long) (timeToWait * 0.05)));
+
+    // If it is 0, then try 50% of the time to wait
+    if (timeToSleep == 0) {
+      timeToSleep = (long) (timeToWait * 0.50);
+    }
+
+    // If it is still 0, use the time to wait
+    if (timeToSleep == 0) {
+      timeToSleep = timeToWait;
+    }
+
+    return timeToSleep;
   }
 
   private void addPeekedEvents(List<GatewaySenderEventImpl> batch, int batchSize) {
@@ -1799,10 +1822,12 @@ public class ParallelGatewaySenderQueue implements RegionQueue {
       return false;
     }
 
+    @Override
     public boolean isUsedForParallelGatewaySenderQueue() {
       return true;
     }
 
+    @Override
     public AbstractGatewaySender getParallelGatewaySender() {
       return this.sender;
     }

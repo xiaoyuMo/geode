@@ -26,6 +26,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.GemFireException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Region.Entry;
@@ -47,6 +48,7 @@ import org.apache.geode.internal.logging.LogService;
 public class TXStateProxyImpl implements TXStateProxy {
   private static final Logger logger = LogService.getLogger();
 
+  @MakeNotStatic
   protected static final AtomicBoolean txDistributedClientWarningIssued = new AtomicBoolean();
 
   private boolean isJTA;
@@ -290,9 +292,9 @@ public class TXStateProxyImpl implements TXStateProxy {
   @Override
   public Object getDeserializedValue(KeyInfo keyInfo, LocalRegion localRegion, boolean updateStats,
       boolean disableCopyOnRead, boolean preferCD, EntryEventImpl clientEvent,
-      boolean returnTombstones, boolean retainResult) {
+      boolean returnTombstones, boolean retainResult, boolean createIfAbsent) {
     Object val = getRealDeal(keyInfo, localRegion).getDeserializedValue(keyInfo, localRegion,
-        updateStats, disableCopyOnRead, preferCD, null, false, retainResult);
+        updateStats, disableCopyOnRead, preferCD, null, false, retainResult, createIfAbsent);
     if (val != null) {
       // fixes bug 51057: TXStateStub on client always returns null, so do not increment
       // the operation count it will be incremented in findObject()

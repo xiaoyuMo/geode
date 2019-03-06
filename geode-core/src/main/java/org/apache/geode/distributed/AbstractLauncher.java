@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.unsafe.RegisterSignalHandlerSupport;
@@ -71,6 +72,7 @@ public abstract class AbstractLauncher<T extends Comparable<T>> implements Runna
   public static final String WORKING_DIRECTORY_NOT_FOUND_ERROR_MESSAGE =
       "The working directory for the %s could not be found.";
 
+  @Immutable
   protected static final Boolean DEFAULT_FORCE = Boolean.FALSE;
 
   /**
@@ -465,6 +467,14 @@ public abstract class AbstractLauncher<T extends Comparable<T>> implements Runna
     protected static final String JSON_UPTIME = "uptime";
     protected static final String JSON_WORKINGDIRECTORY = "workingDirectory";
 
+    static final String TO_STRING_PROCESS_ID = "Process ID: ";
+    static final String TO_STRING_JAVA_VERSION = "Java Version: ";
+    static final String TO_STRING_LOG_FILE = "Log File: ";
+    static final String TO_STRING_JVM_ARGUMENTS = "JVM Arguments: ";
+    static final String TO_STRING_CLASS_PATH = "Class-Path: ";
+    static final String TO_STRING_UPTIME = "Uptime: ";
+    static final String TO_STRING_GEODE_VERSION = "Geode Version: ";
+
     private static final String DATE_TIME_FORMAT_PATTERN = "MM/dd/yyyy hh:mm a";
 
     private final Integer pid;
@@ -764,26 +774,44 @@ public abstract class AbstractLauncher<T extends Comparable<T>> implements Runna
      */
     @Override
     public String toString() {
+      StringBuilder sb = new StringBuilder();
       switch (getStatus()) {
         case STARTING:
-          return String.format(
-              "Starting %s in %s on %s as %s at %sProcess ID: %sGeode Version: %sJava Version: %sLog File: %sJVM Arguments: %sClass-Path: %s",
+          sb.append("Starting %s in %s on %s as %s at %s").append(System.lineSeparator());
+          sb.append(TO_STRING_PROCESS_ID).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_JAVA_VERSION).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_LOG_FILE).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_JVM_ARGUMENTS).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_CLASS_PATH).append("%s");
+          return String.format(sb.toString(),
               getServiceName(), getWorkingDirectory(), getServiceLocation(), getMemberName(),
               toString(getTimestamp()), toString(getPid()), toString(getGemFireVersion()),
               toString(getJavaVersion()), getLogFile(), ArgumentRedactor.redact(getJvmArguments()),
               toString(getClasspath()));
+
         case ONLINE:
-          return String.format(
-              "%s in %s on %s as %s is currently %s.Process ID: %sUptime: %sGeode Version: %sJava Version: %sLog File: %sJVM Arguments: %sClass-Path: %s",
+          sb.append("%s in %s on %s as %s is currently %s.").append(System.lineSeparator());
+          sb.append(TO_STRING_PROCESS_ID).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_UPTIME).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_GEODE_VERSION).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_JAVA_VERSION).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_LOG_FILE).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_JVM_ARGUMENTS).append("%s").append(System.lineSeparator());
+          sb.append(TO_STRING_CLASS_PATH).append("%s");
+          return String.format(sb.toString(),
               getServiceName(), getWorkingDirectory(), getServiceLocation(), getMemberName(),
               getStatus(), toString(getPid()), toDaysHoursMinutesSeconds(getUptime()),
               toString(getGemFireVersion()), toString(getJavaVersion()), getLogFile(),
               ArgumentRedactor.redact(getJvmArguments()), toString(getClasspath()));
+
         case STOPPED:
-          return String.format("%s in %s on %s has been requested to stop.",
+          sb.append("%s in %s on %s has been requested to stop.");
+          return String.format(sb.toString(),
               getServiceName(), getWorkingDirectory(), getServiceLocation());
+
         default: // NOT_RESPONDING
-          return String.format("%s in %s on %s is currently %s.", getServiceName(),
+          sb.append("%s in %s on %s is currently %s.");
+          return String.format(sb.toString(), getServiceName(),
               getWorkingDirectory(), getServiceLocation(), getStatus());
       }
     }

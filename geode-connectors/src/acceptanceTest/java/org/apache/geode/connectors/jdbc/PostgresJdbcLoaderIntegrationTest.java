@@ -14,13 +14,23 @@
  */
 package org.apache.geode.connectors.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.net.URL;
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.ClassRule;
+import org.junit.Test;
 
+import org.apache.geode.cache.Region;
+import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
+import org.apache.geode.pdx.FieldType;
+import org.apache.geode.pdx.PdxInstance;
 import org.apache.geode.test.junit.rules.DatabaseConnectionRule;
 import org.apache.geode.test.junit.rules.PostgresConnectionRule;
 
@@ -51,4 +61,64 @@ public class PostgresJdbcLoaderIntegrationTest extends JdbcLoaderIntegrationTest
         + "along bigint, " + "afloat float, " + "adouble float, " + "astring varchar(10), "
         + "adate timestamp, " + "anobject varchar(20), " + "abytearray bytea, " + "achar char(1))");
   }
+
+  @Override
+  protected List<FieldMapping> getSupportedPdxFieldsTableFieldMappings() {
+    List<FieldMapping> fieldMappings = Arrays.asList(
+        new FieldMapping("id", FieldType.STRING.name(), "id", JDBCType.VARCHAR.name(), false),
+        new FieldMapping("aboolean", FieldType.BOOLEAN.name(), "aboolean", JDBCType.SMALLINT.name(),
+            true),
+        new FieldMapping("aByte", FieldType.BYTE.name(), "abyte", JDBCType.SMALLINT.name(), true),
+        new FieldMapping("ASHORT", FieldType.SHORT.name(), "ashort", JDBCType.SMALLINT.name(),
+            true),
+        new FieldMapping("anint", FieldType.INT.name(), "anint", JDBCType.INTEGER.name(), true),
+        new FieldMapping("along", FieldType.LONG.name(), "along", JDBCType.BIGINT.name(), true),
+        new FieldMapping("afloat", FieldType.FLOAT.name(), "afloat", JDBCType.FLOAT.name(), true),
+        new FieldMapping("adouble", FieldType.DOUBLE.name(), "adouble", JDBCType.FLOAT.name(),
+            true),
+        new FieldMapping("astring", FieldType.STRING.name(), "astring", JDBCType.VARCHAR.name(),
+            true),
+        new FieldMapping("adate", FieldType.DATE.name(), "adate", JDBCType.TIMESTAMP.name(), true),
+        new FieldMapping("anobject", FieldType.OBJECT.name(), "anobject", JDBCType.VARCHAR.name(),
+            true),
+        new FieldMapping("abytearray", FieldType.BYTE_ARRAY.name(), "abytearray",
+            JDBCType.BINARY.name(), true),
+        new FieldMapping("achar", FieldType.CHAR.name(), "achar", JDBCType.CHAR.name(), true));
+    return fieldMappings;
+  }
+
+  @Override
+  protected boolean vendorSupportsSchemas() {
+    return true;
+  }
+
+  private void createEmployeeTableWithSchemaAndCatalog() throws Exception {
+    statement.execute("CREATE SCHEMA " + SCHEMA_NAME);
+    statement.execute("Create Table " + DB_NAME + '.' + SCHEMA_NAME + '.' + REGION_TABLE_NAME
+        + " (id varchar(10) primary key not null, name varchar(10), age int)");
+  }
+
+  @Test
+  public void verifyGetWithSchemaCatalogAndPdxClassNameAndCompositeKey() throws Exception {
+    createEmployeeTableWithSchemaAndCatalog();
+    statement
+        .execute("Insert into " + DB_NAME + '.' + SCHEMA_NAME + '.' + REGION_TABLE_NAME
+            + "(id, name, age) values('1', 'Emp1', 21)");
+    String ids = "id,name";
+    Region<String, Employee> region =
+        createRegionWithJDBCLoader(REGION_TABLE_NAME, Employee.class.getName(), ids, DB_NAME,
+            SCHEMA_NAME, getEmployeeTableFieldMappings());
+    createPdxType();
+
+    PdxInstance key =
+        cache.createPdxInstanceFactory("MyPdxKeyType").neverDeserialize().writeString("id", "1")
+            .writeString("name", "Emp1").create();
+    Employee value = region.get(key);
+
+    assertThat(value.getId()).isEqualTo("1");
+    assertThat(value.getName()).isEqualTo("Emp1");
+    assertThat(value.getAge()).isEqualTo(21);
+  }
+
+
 }

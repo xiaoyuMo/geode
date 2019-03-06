@@ -39,6 +39,8 @@ import org.apache.geode.CancelException;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.CacheListener;
@@ -83,9 +85,9 @@ import org.apache.geode.distributed.internal.locks.DLockRemoteToken;
 import org.apache.geode.distributed.internal.locks.DLockService;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
-import org.apache.geode.internal.cache.AbstractRegionMap.ARMLockTestHook;
 import org.apache.geode.internal.cache.CacheDistributionAdvisor.CacheProfile;
 import org.apache.geode.internal.cache.InitialImageOperation.GIIStatus;
+import org.apache.geode.internal.cache.RegionMap.ARMLockTestHook;
 import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceType;
 import org.apache.geode.internal.cache.control.MemoryEvent;
 import org.apache.geode.internal.cache.event.DistributedEventTracker;
@@ -130,6 +132,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
   private static final Logger logger = LogService.getLogger();
 
   /** causes cache profile to be added to afterRemoteRegionCreate notification for testing */
+  @MutableForTesting
   public static boolean TEST_HOOK_ADD_PROFILE = false;
 
   /** Used to sync accesses to this.dlockService to allow lazy construction */
@@ -174,6 +177,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
   private volatile boolean generateVersionTag = true;
 
   /** Tests can set this to true and ignore reliability triggered reconnects */
+  @MutableForTesting
   public static boolean ignoreReconnect = false;
 
   /**
@@ -182,6 +186,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
   private final Object clearLock = new Object();
   private final ReentrantReadWriteLock failedInitialImageLock = new ReentrantReadWriteLock(true);
 
+  @MakeNotStatic
   private static final AtomicBoolean loggedNetworkPartitionWarning = new AtomicBoolean(false);
 
   /** Creates a new instance of DistributedRegion */
@@ -3499,6 +3504,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
       }
     }
 
+    @Override
     public synchronized void memberDeparted(DistributionManager distributionManager,
         InternalDistributedMember id, boolean crashed) {
       if (this.destroyed) {
@@ -3676,6 +3682,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
       this.onlyPersistent = onlyPersistent;
     }
 
+    @Override
     public boolean visit(DistributionAdvisor advisor, Profile profile, int profileIndex,
         int numProfiles, DistributedMember member) {
       final CacheProfile cp = (CacheProfile) profile;

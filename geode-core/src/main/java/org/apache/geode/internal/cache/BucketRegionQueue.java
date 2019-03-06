@@ -176,7 +176,14 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
       }
       if (containsKey(key)) {
         try {
-          destroyKey(key);
+          // The destroyKey method is called with forceBasicDestroy set to true since containsKey
+          // can be true even though get on the key returns null. That happens when the
+          // ParallelQueueRemovalMessage destroys the entry first. In that case, when this method is
+          // invoked, the raw value is the DESTROYED token. This was causing the
+          // EntryNotFoundException to be thrown by basicDestroy. The forceBasicDestroy boolean set
+          // to true forces the super.basicDestroy call to be made instead of the
+          // EntryNotFoundException to be thrown.
+          destroyKey(key, true);
           if (isDebugEnabled) {
             logger.debug("Destroyed {} from bucket: ", key, getId());
           }
@@ -227,6 +234,7 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
     // NOOP since we want the value in the region queue to stay in object form.
   }
 
+  @Override
   protected void clearQueues() {
     getInitializationLock().writeLock().lock();
     try {
@@ -315,44 +323,55 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
   }
 
   // No need to synchronize because it is called from a synchronized method
-  private void removeIndex(Long qkey) {
+  protected boolean removeIndex(Long qkey) {
     // Determine whether conflation is enabled for this queue and object
+    boolean entryFound;
     Object o = getNoLRU(qkey, true, false, false);
-    if (o instanceof Conflatable) {
-      Conflatable object = (Conflatable) o;
-      if (object.shouldBeConflated()) {
-        // Otherwise, remove the index from the indexes map.
-        String rName = object.getRegionToConflate();
-        Object key = object.getKeyToConflate();
-        Map latestIndexesForRegion = (Map) this.indexes.get(rName);
-        if (latestIndexesForRegion != null) {
-          // Remove the index if appropriate. Verify the qKey is actually the one being referenced
-          // in the index. If it isn't, then another event has been received for the real key. In
-          // that case, don't remove the index since it has already been overwritten.
-          if (latestIndexesForRegion.get(key) == qkey) {
-            Long index = (Long) latestIndexesForRegion.remove(key);
-            if (index != null) {
-              this.getPartitionedRegion().getParallelGatewaySender().getStatistics()
-                  .decConflationIndexesMapSize();
-              if (logger.isDebugEnabled()) {
-                logger.debug("{}: Removed index {} for {}", this, index, object);
+    if (o == null) {
+      entryFound = false;
+    } else {
+      entryFound = true;
+      if (o instanceof Conflatable) {
+        Conflatable object = (Conflatable) o;
+        if (object.shouldBeConflated()) {
+          // Otherwise, remove the index from the indexes map.
+          String rName = object.getRegionToConflate();
+          Object key = object.getKeyToConflate();
+          Map latestIndexesForRegion = (Map) this.indexes.get(rName);
+          if (latestIndexesForRegion != null) {
+            // Remove the index if appropriate. Verify the qKey is actually the one being referenced
+            // in the index. If it isn't, then another event has been received for the real key. In
+            // that case, don't remove the index since it has already been overwritten.
+            if (latestIndexesForRegion.get(key) == qkey) {
+              Long index = (Long) latestIndexesForRegion.remove(key);
+              if (index != null) {
+                this.getPartitionedRegion().getParallelGatewaySender().getStatistics()
+                    .decConflationIndexesMapSize();
+                if (logger.isDebugEnabled()) {
+                  logger.debug("{}: Removed index {} for {}", this, index, object);
+                }
               }
             }
           }
         }
       }
     }
+    return entryFound;
   }
 
-  @Override
   public void basicDestroy(final EntryEventImpl event, final boolean cacheWrite,
-      Object expectedOldValue)
+      Object expectedOldValue, boolean forceBasicDestroy)
       throws EntryNotFoundException, CacheWriterException, TimeoutException {
+    boolean indexEntryFound = true;
     if (getPartitionedRegion().isConflationEnabled()) {
-      removeIndex((Long) event.getKey());
+      indexEntryFound = containsKey(event.getKey()) && removeIndex((Long) event.getKey());
     }
     try {
-      super.basicDestroy(event, cacheWrite, expectedOldValue);
+      if (indexEntryFound || forceBasicDestroy) {
+        super.basicDestroy(event, cacheWrite, expectedOldValue);
+      } else {
+        throw new EntryNotFoundException(event.getKey().toString());
+      }
     } finally {
       GatewaySenderEventImpl.release(event.getRawOldValue());
     }
@@ -425,6 +444,7 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
     }
   }
 
+  @Override
   protected void addToEventQueue(Object key, boolean didPut, EntryEventImpl event) {
     if (didPut) {
       if (this.initialized) {
@@ -538,7 +558,12 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
    * eventSeqNumQueue if EntryNotFoundException is encountered during basicDestroy. This change is
    * done during selective merge from r41425 from gemfire701X_maint.
    */
+  @Override
   public void destroyKey(Object key) throws ForceReattemptException {
+    destroyKey(key, false);
+  }
+
+  private void destroyKey(Object key, boolean forceBasicDestroy) throws ForceReattemptException {
     if (logger.isDebugEnabled()) {
       logger.debug(" destroying primary key {}", key);
     }
@@ -547,7 +572,7 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
     try {
       event.setEventId(new EventID(cache.getInternalDistributedSystem()));
       event.setRegion(this);
-      basicDestroy(event, true, null);
+      basicDestroy(event, true, null, forceBasicDestroy);
       setLatestAcknowledgedKey((Long) key);
       checkReadiness();
     } catch (EntryNotFoundException enf) {
@@ -573,6 +598,7 @@ public class BucketRegionQueue extends AbstractBucketRegionQueue {
     this.notifyEntriesRemoved();
   }
 
+  @Override
   public EntryEventImpl newDestroyEntryEvent(Object key, Object aCallbackArgument) {
     return getPartitionedRegion().newDestroyEntryEvent(key, aCallbackArgument);
   }

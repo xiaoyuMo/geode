@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.EntryDestroyedException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.query.AmbiguousNameException;
@@ -35,7 +36,7 @@ import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.pdx.PdxInstance;
 import org.apache.geode.pdx.PdxSerializationException;
-import org.apache.geode.pdx.internal.PdxInstanceImpl;
+import org.apache.geode.pdx.internal.InternalPdxInstance;
 import org.apache.geode.pdx.internal.PdxString;
 
 /**
@@ -49,6 +50,7 @@ public class CompiledOperation extends AbstractCompiledValue {
   private final CompiledValue receiver; // may be null if implicit to scope
   private final String methodName;
   private final List args;
+  @MakeNotStatic
   private static final ConcurrentMap cache = new ConcurrentHashMap();
 
 
@@ -78,6 +80,7 @@ public class CompiledOperation extends AbstractCompiledValue {
   }
 
 
+  @Override
   public int getType() {
     return METHOD_INV;
   }
@@ -104,6 +107,7 @@ public class CompiledOperation extends AbstractCompiledValue {
     return this.getReceiver(null);
   }
 
+  @Override
   public Object evaluate(ExecutionContext context) throws FunctionDomainException,
       TypeMismatchException, NameResolutionException, QueryInvocationTargetException {
     CompiledValue rcvr = getReceiver(context);
@@ -280,13 +284,9 @@ public class CompiledOperation extends AbstractCompiledValue {
       // cache
       CompiledOperation.cache.putIfAbsent(key, methodDispatch);
     }
-    if (receiver instanceof PdxInstance) {
+    if (receiver instanceof InternalPdxInstance) {
       try {
-        if (receiver instanceof PdxInstanceImpl) {
-          receiver = ((PdxInstanceImpl) receiver).getCachedObject();
-        } else {
-          receiver = ((PdxInstance) receiver).getObject();
-        }
+        receiver = ((InternalPdxInstance) receiver).getCachedObject();
       } catch (PdxSerializationException ex) {
         throw new QueryInvocationTargetException(ex);
       }

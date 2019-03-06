@@ -41,6 +41,8 @@ import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.InterestResultPolicy;
 import org.apache.geode.cache.Operation;
@@ -113,7 +115,7 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
   /**
    * System of which we are a part
    */
-  private final InternalDistributedSystem system;
+  private final DistributedSystem system;
 
   /**
    * The socket by which we communicate with the server
@@ -190,12 +192,14 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
   /**
    * to enable test flag TODO: eliminate isUsedByTest
    */
+  @MutableForTesting
   public static boolean isUsedByTest;
 
   /**
    * Indicates if full value was requested from server as a result of failure in applying delta
    * bytes. TODO: only used for test assertion
    */
+  @MutableForTesting
   static boolean fullValueRequested = false;
 
   private final ServerLocation location;
@@ -272,16 +276,30 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
       EndpointManager eManager, Endpoint endpoint, int handshakeTimeout,
       SocketCreator socketCreator) throws AuthenticationRequiredException,
       AuthenticationFailedException, ServerRefusedConnectionException {
+    this(name, location, primary, ids, handshake, qManager, eManager, endpoint, handshakeTimeout,
+        socketCreator, new StatisticsProvider());
+  }
+
+  /**
+   * alternative constructor for unit tests. This constructor allows you to pass a
+   * mock StatisticsProvider
+   */
+  public CacheClientUpdater(String name, ServerLocation location, boolean primary,
+      DistributedSystem distributedSystem, ClientSideHandshake handshake, QueueManager qManager,
+      EndpointManager eManager, Endpoint endpoint, int handshakeTimeout,
+      SocketCreator socketCreator, StatisticsProvider statisticsProvider)
+      throws AuthenticationRequiredException,
+      AuthenticationFailedException, ServerRefusedConnectionException {
     super(name);
-    this.system = (InternalDistributedSystem) ids;
-    this.isDurableClient = handshake.getMembershipId().isDurable();
+    this.system = distributedSystem;
+    this.isDurableClient = handshake.isDurable();
     this.isPrimary = primary;
     this.location = location;
     this.qManager = qManager;
     // this holds the connection which this threads reads
     this.eManager = eManager;
     this.endpoint = endpoint;
-    this.stats = new CCUStats(this.system, this.location);
+    this.stats = statisticsProvider.createStatistics(distributedSystem, location);
 
     // Create the connection...
     final boolean isDebugEnabled = logger.isDebugEnabled();
@@ -398,35 +416,21 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
       throw e;
     } finally {
       this.connected = success;
-      if (mySock != null) {
-        try {
-          mySock.setSoTimeout(0);
-        } catch (SocketException ignore) {
-          // ignore: nothing we can do about this
-        }
-      }
-
+      this.socket = mySock;
+      this.commBuffer = cb;
+      this.out = tmpOut;
+      this.in = tmpIn;
+      this.serverId = sid;
       if (this.connected) {
-        this.socket = mySock;
-        this.out = tmpOut;
-        this.in = tmpIn;
-        this.serverId = sid;
-        this.commBuffer = cb;
-
-      } else {
-        this.socket = null;
-        this.serverId = null;
-        this.commBuffer = null;
-        this.out = null;
-        this.in = null;
-
         if (mySock != null) {
           try {
-            mySock.close();
-          } catch (IOException ioe) {
-            logger.warn("Closing socket in {} failed", this, ioe);
+            mySock.setSoTimeout(0);
+          } catch (SocketException ignore) {
+            // ignore: nothing we can do about this
           }
         }
+      } else {
+        close();
       }
     }
   }
@@ -471,8 +475,10 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
     EntryLogger.setSource(this.serverId, "RI");
     boolean addedListener = false;
     try {
-      this.system.addDisconnectListener(this);
-      addedListener = true;
+      if (system instanceof InternalDistributedSystem) {
+        ((InternalDistributedSystem) system).addDisconnectListener(this);
+        addedListener = true;
+      }
 
       if (!waitForCache()) {
         logger.warn("{}: no cache (exiting)", this);
@@ -485,7 +491,7 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
 
     } finally {
       if (addedListener) {
-        this.system.removeDisconnectListener(this);
+        ((InternalDistributedSystem) system).removeDisconnectListener(this);
       }
       this.close();
       EntryLogger.clearSource();
@@ -547,13 +553,12 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
       // ignore
     }
 
-    this.stats.close();
-
-    // close the helper
     if (this.cacheHelper != null) {
       this.cacheHelper.close();
     }
     releaseCommBuffer();
+
+    this.stats.close();
   }
 
   /**
@@ -1825,6 +1830,12 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
     }
   }
 
+  public static class StatisticsProvider {
+    public CCUStats createStatistics(DistributedSystem system, ServerLocation location) {
+      return new CCUStats(system, location);
+    }
+  }
+
   /**
    * Stats for a CacheClientUpdater. Currently the only thing measured are incoming bytes on the
    * wire
@@ -1833,6 +1844,7 @@ public class CacheClientUpdater extends LoggingThread implements ClientUpdater, 
    */
   public static class CCUStats implements MessageStats {
 
+    @Immutable
     private static final StatisticsType type;
     private static final int messagesBeingReceivedId;
     private static final int messageBytesBeingReceivedId;

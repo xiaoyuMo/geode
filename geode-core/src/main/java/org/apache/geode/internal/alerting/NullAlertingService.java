@@ -14,6 +14,7 @@
  */
 package org.apache.geode.internal.alerting;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.DistributedMember;
 
 /**
@@ -21,6 +22,7 @@ import org.apache.geode.distributed.DistributedMember;
  */
 public class NullAlertingService extends AlertingService {
 
+  @Immutable
   private static final NullAlertingService INSTANCE = new NullAlertingService();
 
   public static NullAlertingService get() {
@@ -31,14 +33,17 @@ public class NullAlertingService extends AlertingService {
     // nothing
   }
 
+  @Override
   public void addAlertListener(final DistributedMember member, final AlertLevel alertLevel) {
     // nothing
   }
 
+  @Override
   public boolean removeAlertListener(final DistributedMember member) {
     return false;
   }
 
+  @Override
   public boolean hasAlertListener(final DistributedMember member, final AlertLevel alertLevel) {
     return false;
   }

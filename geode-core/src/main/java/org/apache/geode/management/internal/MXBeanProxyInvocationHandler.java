@@ -24,6 +24,7 @@ import java.util.Set;
 import javax.management.ObjectName;
 
 import org.apache.geode.LogWriter;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 
 /**
@@ -125,6 +126,7 @@ public class MXBeanProxyInvocationHandler {
    * (see eliminateCovariantMethods).
    **/
   private static class MethodOrder implements Comparator<Method> {
+    @Override
     public int compare(Method a, Method b) {
       final int cmp = a.getName().compareTo(b.getName());
       if (cmp != 0)
@@ -146,6 +148,7 @@ public class MXBeanProxyInvocationHandler {
       return +1;
     }
 
+    @Immutable
     public static final MethodOrder instance = new MethodOrder();
   }
 
@@ -218,6 +221,7 @@ public class MXBeanProxyInvocationHandler {
 
     }
 
+    @Override
     Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
       final String methodName = method.getName();
       final Class[] paramTypes = method.getParameterTypes();

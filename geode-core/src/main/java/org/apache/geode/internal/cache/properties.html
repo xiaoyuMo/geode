@@ -1691,7 +1691,7 @@ Allow query on region with heterogeneous objects
 <p>
 <em>Boolean</em> (defaults to false)
 <p>
-See <code>org.apache.geode.cache.execute.internal.FunctionServiceManager.#RANDOM_onMember</code>
+See <code>org.apache.geode.internal.cache.execute.InternalFunctionExecutionServiceImpl.#RANDOM_onMember</code>
 <p>
 When set, onMember execution will be executed on a random member.
 </dd>
@@ -2919,17 +2919,6 @@ See org.apache.geode.internal.tcp.TCPConduit#startAcceptor(int, int, InetAddress
 TBA 
 </dd>
 
-<!-- -------------------------------------------------------  -->
-<dt><strong>p2p.useSSL</strong></dt>
-<dd>
-<em>Public:</em> false
-<p>
-<em>Boolean</em> (default is false)
-<p>
-See org.apache.geode.internal.tcp.TCPConduit#useSSL.
-<p>
-TBA 
-</dd>
 
 <!-- -------------------------------------------------------  -->
 <dt><strong>query.disableIndexes</strong></dt>

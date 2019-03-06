@@ -16,6 +16,7 @@ package org.apache.geode.cache.client.internal;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.EntryNotFoundException;
 import org.apache.geode.cache.Operation;
@@ -104,6 +105,7 @@ public class DestroyOp {
   }
 
   /** this is set if a response is received indicating that the entry was not found on the server */
+  @MutableForTesting
   public static boolean TEST_HOOK_ENTRY_NOT_FOUND;
 
   private DestroyOp() {
@@ -139,9 +141,7 @@ public class DestroyOp {
       getMessage().addStringPart(region.getFullPath());
       getMessage().addStringOrObjPart(key);
       getMessage().addObjPart(expectedOldValue);
-      getMessage().addObjPart(operation == Operation.DESTROY ? null : operation); // server
-                                                                                  // interprets null
-                                                                                  // as DESTROY
+      getMessage().addBytePart(operation.ordinal);
       getMessage().addBytesPart(event.getEventId().calcBytes());
       if (callbackArg != null) {
         getMessage().addObjPart(callbackArg);
@@ -158,9 +158,7 @@ public class DestroyOp {
       getMessage().addStringPart(region);
       getMessage().addStringOrObjPart(key);
       getMessage().addObjPart(expectedOldValue);
-      getMessage().addObjPart(operation == Operation.DESTROY ? null : operation); // server
-                                                                                  // interprets null
-                                                                                  // as DESTROY
+      getMessage().addBytePart(operation.ordinal);
       getMessage().addBytesPart(event.getEventId().calcBytes());
       if (callbackArg != null) {
         getMessage().addObjPart(callbackArg);

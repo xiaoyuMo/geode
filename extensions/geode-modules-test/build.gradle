@@ -1,3 +1,5 @@
+import org.apache.geode.gradle.plugins.DependencyConstraints
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -15,7 +17,10 @@
  * limitations under the License.
  */
 
+
+
 dependencies {
+  compile(platform(project(':boms:geode-all-bom')))
   compile(project(':extensions:geode-modules')) {
     // Remove everything related to Tomcat 6.x
     exclude group: 'org.apache.tomcat'
@@ -25,19 +30,18 @@ dependencies {
     exclude module: 'geode-core'
   }
 
-  compile('commons-io:commons-io:' + project.'commons-io.version')
-  compile('javax.servlet:javax.servlet-api:' + project.'javax.servlet-api.version')
-  compile('junit:junit:' + project.'junit.version')
-  compile('org.httpunit:httpunit:' + project.'httpunit.version') {
+  compile('commons-io:commons-io')
+  compile('javax.servlet:javax.servlet-api')
+  compile('junit:junit')
+  compile('org.httpunit:httpunit') {
     // this version of httpunit contains very outdated xercesImpl
     exclude group: 'xerces'
   }
 
-  compileOnly('org.apache.tomcat:catalina-ha:' + project.'tomcat6.version') {
+  compileOnly('org.apache.tomcat:catalina-ha:' + DependencyConstraints.get('tomcat6.version')) {
     exclude module: 'annotations-api'
     exclude module: 'coyote'
     exclude module: 'tribes'
   }
 }
 
-disableMavenPublishing()

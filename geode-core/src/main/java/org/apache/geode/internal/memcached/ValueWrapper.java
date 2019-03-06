@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 
 /**
  * For CAS operation, we have to store a unique long with all the values being stored. This class
@@ -52,6 +53,7 @@ public class ValueWrapper implements DataSerializable {
   /**
    * used to generate the version while constructing an instance.
    */
+  @MakeNotStatic
   private static final AtomicLong versionGenerator = new AtomicLong();
 
   public ValueWrapper() {}
@@ -121,12 +123,14 @@ public class ValueWrapper implements DataSerializable {
     return Long.valueOf(casVersion).hashCode();
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.casVersion = in.readLong();
     this.value = DataSerializer.readByteArray(in);
     this.flags = in.readInt();
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     out.writeLong(this.casVersion);
     DataSerializer.writeByteArray(value, out);

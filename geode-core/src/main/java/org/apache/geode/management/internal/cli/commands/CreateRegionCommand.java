@@ -14,6 +14,7 @@
  */
 package org.apache.geode.management.internal.cli.commands;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -21,11 +22,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.management.ObjectName;
-
+import joptsimple.internal.Strings;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.springframework.shell.core.annotation.CliCommand;
 import org.springframework.shell.core.annotation.CliOption;
 
@@ -33,49 +33,55 @@ import org.apache.geode.cache.CacheListener;
 import org.apache.geode.cache.CacheLoader;
 import org.apache.geode.cache.CacheWriter;
 import org.apache.geode.cache.CustomExpiry;
-import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.EvictionAction;
 import org.apache.geode.cache.ExpirationAction;
 import org.apache.geode.cache.Region;
-import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.RegionShortcut;
 import org.apache.geode.cache.configuration.CacheConfig;
 import org.apache.geode.cache.configuration.CacheElement;
+import org.apache.geode.cache.configuration.ClassNameType;
+import org.apache.geode.cache.configuration.DeclarableType;
+import org.apache.geode.cache.configuration.RegionAttributesType;
 import org.apache.geode.cache.configuration.RegionConfig;
-import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.InternalConfigurationPersistenceService;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.config.JAXBService;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.management.DistributedRegionMXBean;
 import org.apache.geode.management.DistributedSystemMXBean;
 import org.apache.geode.management.ManagementService;
-import org.apache.geode.management.RegionAttributesData;
-import org.apache.geode.management.RegionMXBean;
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
 import org.apache.geode.management.cli.SingleGfshCommand;
 import org.apache.geode.management.internal.cli.AbstractCliAroundInterceptor;
-import org.apache.geode.management.internal.cli.CliUtil;
 import org.apache.geode.management.internal.cli.GfshParseResult;
-import org.apache.geode.management.internal.cli.LogWrapper;
 import org.apache.geode.management.internal.cli.domain.ClassName;
-import org.apache.geode.management.internal.cli.domain.RegionConfigFactory;
-import org.apache.geode.management.internal.cli.exceptions.EntityExistsException;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
+import org.apache.geode.management.internal.cli.functions.CreateRegionFunctionArgs;
 import org.apache.geode.management.internal.cli.functions.FetchRegionAttributesFunction;
-import org.apache.geode.management.internal.cli.functions.RegionAttributesWrapper;
 import org.apache.geode.management.internal.cli.functions.RegionCreateFunction;
-import org.apache.geode.management.internal.cli.functions.RegionFunctionArgs;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.result.model.ResultModel;
 import org.apache.geode.management.internal.cli.util.RegionPath;
+import org.apache.geode.management.internal.exceptions.EntityExistsException;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
 public class CreateRegionCommand extends SingleGfshCommand {
+  private static final String[] PARTITION_ATTRIBUTES = new String[] {
+      CliStrings.CREATE_REGION__COLOCATEDWITH,
+      CliStrings.CREATE_REGION__LOCALMAXMEMORY,
+      CliStrings.CREATE_REGION__RECOVERYDELAY,
+      CliStrings.CREATE_REGION__REDUNDANTCOPIES,
+      CliStrings.CREATE_REGION__STARTUPRECOVERYDDELAY,
+      CliStrings.CREATE_REGION__TOTALMAXMEMORY,
+      CliStrings.CREATE_REGION__TOTALNUMBUCKETS,
+      CliStrings.CREATE_REGION__PARTITION_RESOLVER
+  };
+
   @CliCommand(value = CliStrings.CREATE_REGION, help = CliStrings.CREATE_REGION__HELP)
   @CliMetaData(relatedTopic = CliStrings.TOPIC_GEODE_REGION,
       interceptor = "org.apache.geode.management.internal.cli.commands.CreateRegionCommand$Interceptor")
@@ -197,264 +203,280 @@ public class CreateRegionCommand extends SingleGfshCommand {
           CliStrings.CREATE_REGION__MSG__ONE_OF_REGIONSHORTCUT_AND_USEATTRIBUTESFROM_IS_REQUIRED);
     }
 
+    try {
+      failIfRegionAlreadyExists(regionPath, regionShortcut, groups);
+    } catch (EntityExistsException e) {
+      return ifNotExists ? ResultModel.createInfo("Skipping: " + e.getMessage())
+          : ResultModel.createError(e.getMessage());
+    }
+
     InternalCache cache = (InternalCache) getCache();
 
-    /*
-     * Adding name collision check for regions created with regionShortcut only.
-     * Regions can be categories as Proxy(replicate/partition), replicate/partition, and local
-     * For concise purpose: we call existing region (E) and region to be created (C)
-     */
-    DistributedRegionMXBean regionBean =
-        getManagementService().getDistributedRegionMXBean(regionPath);
-
-    if (regionBean != null && regionShortcut != null) {
-      String existingDataPolicy = regionBean.getRegionType();
-      // either C is local, or E is local or E and C are both non-proxy regions. this is to make
-      // sure local, replicate or partition regions have unique names across the entire cluster
-      if (regionShortcut.isLocal() || existingDataPolicy.equals("NORMAL")
-          || !regionShortcut.isProxy()
-              && (regionBean.getMemberCount() > regionBean.getEmptyNodes())) {
-        throw new EntityExistsException(
-            String.format("Region %s already exists on the cluster.", regionPath), ifNotExists);
-      }
-
-      // after this, one of E and C is proxy region or both are proxy regions.
-
-      // we first make sure E and C have the compatible data policy
-      if (regionShortcut.isPartition() && !existingDataPolicy.contains("PARTITION")) {
-        LogService.getLogger().info("Create region command: got EntityExists exception");
-        throw new EntityExistsException("The existing region is not a partitioned region",
-            ifNotExists);
-      }
-      if (regionShortcut.isReplicate()
-          && !(existingDataPolicy.equals("EMPTY") || existingDataPolicy.contains("REPLICATE")
-              || existingDataPolicy.contains("PRELOADED"))) {
-        throw new EntityExistsException("The existing region is not a replicate region",
-            ifNotExists);
-      }
-      // then we make sure E and C are on different members
-      Set<String> membersWithThisRegion =
-          Arrays.stream(regionBean.getMembers()).collect(Collectors.toSet());
-      Set<String> membersWithinGroup = findMembers(groups, null).stream()
-          .map(DistributedMember::getName).collect(Collectors.toSet());
-      if (!Collections.disjoint(membersWithinGroup, membersWithThisRegion)) {
-        throw new EntityExistsException(
-            String.format("Region %s already exists on these members: %s.", regionPath,
-                StringUtils.join(membersWithThisRegion, ",")),
-            ifNotExists);
-      }
-    }
-
-    // validating the parent region
+    // validate the parent region
     RegionPath regionPathData = new RegionPath(regionPath);
-    String parentRegionPath = regionPathData.getParent();
-    if (parentRegionPath != null && !Region.SEPARATOR.equals(parentRegionPath)) {
-      if (!regionExists(cache, parentRegionPath)) {
-        return ResultModel.createError(
-            CliStrings.format(CliStrings.CREATE_REGION__MSG__PARENT_REGION_FOR_0_DOES_NOT_EXIST,
-                new Object[] {regionPath}));
+    if (!regionPathData.isRoot() && !regionExists(regionPathData.getParent())) {
+      return ResultModel.createError(
+          CliStrings.format(CliStrings.CREATE_REGION__MSG__PARENT_REGION_FOR_0_DOES_NOT_EXIST,
+              new Object[] {regionPath}));
+    }
+
+    RegionConfig regionConfig = new RegionConfig();
+
+    // get the initial set of attributes either from shortcut or from the template region
+    InternalConfigurationPersistenceService persistenceService =
+        getConfigurationPersistenceService();
+    if (regionShortcut != null) {
+      regionConfig.setType(regionShortcut.name());
+    }
+    // get the attributes from the template region
+    else {
+      List<RegionConfig> templateRegionConfigs = new ArrayList<>();
+      // get the potential template region config from the cluster configuration
+      if (persistenceService != null) {
+        templateRegionConfigs = persistenceService.getGroups().stream()
+            .flatMap(g -> persistenceService.getCacheConfig(g, true).getRegions().stream())
+            .filter(c -> c.getName().equals(templateRegion.substring(1)))
+            .collect(Collectors.toList());
+      }
+      // as a last resort, go the member that hosts this region to retrieve the template's region
+      // xml
+      else {
+        // we would need to execute a function to the member hosting the template region to get the
+        // region xml. cluster configuration isn't always enabled, so we cannot guarantee that we
+        // can
+        // get the template region configuration from the cluster configuration.
+        Set<DistributedMember> regionAssociatedMembers = findMembersForRegion(templateRegion);
+
+        if (!regionAssociatedMembers.isEmpty()) {
+          List<CliFunctionResult> regionXmlResults = executeAndGetFunctionResult(
+              FetchRegionAttributesFunction.INSTANCE, templateRegion, regionAssociatedMembers);
+
+          JAXBService jaxbService = new JAXBService(CacheConfig.class);
+          templateRegionConfigs = regionXmlResults.stream().filter(CliFunctionResult::isSuccessful)
+              .map(CliFunctionResult::getResultObject).map(String.class::cast)
+              .map(s -> jaxbService.unMarshall(s, RegionConfig.class))
+              .collect(Collectors.toList());
+        }
+      }
+
+      if (templateRegionConfigs.isEmpty()) {
+        return ResultModel.createError("Template region " + templateRegion + " does not exist.");
+      }
+      if (templateRegionConfigs.size() == 1) {
+        regionConfig = templateRegionConfigs.get(0);
+      }
+      // found more than one configuration with this name. fail ff they have different attributes.
+      else {
+        RegionConfig first = templateRegionConfigs.get(0);
+        for (int i = 1; i < templateRegionConfigs.size(); i++) {
+          if (!EqualsBuilder.reflectionEquals(first, templateRegionConfigs.get(i), false, null,
+              true)) {
+            return ResultModel.createError("Multiple types of template region " + templateRegion
+                + " exist. Can not resolve template region attributes.");
+          }
+        }
+        regionConfig = first;
       }
     }
 
-    // creating the RegionFunctionArgs
-    RegionFunctionArgs functionArgs = new RegionFunctionArgs();
-    functionArgs.setRegionPath(regionPath);
-    functionArgs.setIfNotExists(ifNotExists);
-    functionArgs.setStatisticsEnabled(statisticsEnabled);
-    functionArgs.setEntryExpirationIdleTime(entryExpirationIdleTime, entryExpirationIdleTimeAction);
-    functionArgs.setEntryExpirationTTL(entryExpirationTTL, entryExpirationTTLAction);
-    functionArgs.setRegionExpirationIdleTime(regionExpirationIdleTime,
-        regionExpirationIdleTimeAction);
-    functionArgs.setRegionExpirationTTL(regionExpirationTTL, regionExpirationTTLAction);
-    functionArgs.setEntryIdleTimeCustomExpiry(entryIdleTimeCustomExpiry);
-    functionArgs.setEntryTTLCustomExpiry(entryTTLCustomExpiry);
-    functionArgs.setEvictionAttributes(evictionAction, evictionMaxMemory, evictionEntryCount,
-        evictionObjectSizer);
-    functionArgs.setDiskStore(diskStore);
-    functionArgs.setDiskSynchronous(diskSynchronous);
-    functionArgs.setEnableAsyncConflation(enableAsyncConflation);
-    functionArgs.setEnableSubscriptionConflation(enableSubscriptionConflation);
-    functionArgs.setAsyncEventQueueIds(asyncEventQueueIds);
-    functionArgs.setGatewaySenderIds(gatewaySenderIds);
-    functionArgs.setConcurrencyChecksEnabled(concurrencyChecksEnabled);
-    functionArgs.setCloningEnabled(cloningEnabled);
-    functionArgs.setConcurrencyLevel(concurrencyLevel);
-    functionArgs.setPartitionArgs(prColocatedWith, prLocalMaxMemory, prRecoveryDelay,
-        prRedundantCopies, prStartupRecoveryDelay, prTotalMaxMemory, prTotalNumBuckets,
-        partitionResolver);
-    functionArgs.setOffHeap(offHeap);
-    functionArgs.setMcastEnabled(mcastEnabled);
+    regionConfig.setName(regionPathData.getName());
 
-    RegionAttributes<?, ?> regionAttributes = null;
-    if (regionShortcut != null) {
-      if (!regionShortcut.name().startsWith("PARTITION") && functionArgs.hasPartitionAttributes()) {
-        return ResultModel.createError(CliStrings.format(
-            CliStrings.CREATE_REGION__MSG__OPTION_0_CAN_BE_USED_ONLY_FOR_PARTITIONEDREGION,
-            functionArgs.getPartitionArgs().getUserSpecifiedPartitionAttributes()) + " "
-            + CliStrings.format(CliStrings.CREATE_REGION__MSG__0_IS_NOT_A_PARITIONEDREGION,
-                regionPath));
-      }
-      functionArgs.setRegionShortcut(regionShortcut);
-      functionArgs.setRegionAttributes(cache.getRegionAttributes(regionShortcut.toString()));
-    } else { // templateRegion != null
-      if (!regionExists(cache, templateRegion)) {
+    // set partition attributes
+    RegionAttributesType regionAttributes = regionConfig.getRegionAttributes();
+    RegionAttributesType.PartitionAttributes delta =
+        RegionAttributesType.PartitionAttributes.generate(partitionResolver, null, prLocalMaxMemory,
+            prRecoveryDelay, prRedundantCopies, prStartupRecoveryDelay, prTotalMaxMemory,
+            prTotalNumBuckets, prColocatedWith);
+
+    RegionAttributesType.PartitionAttributes partitionAttributes =
+        RegionAttributesType.PartitionAttributes.combine(
+            regionAttributes.getPartitionAttributes(), delta);
+    regionAttributes.setPartitionAttributes(partitionAttributes);
+
+    // validate if partition args are supplied only for partitioned regions
+    if (!regionAttributes.getDataPolicy().isPartition() && partitionAttributes != null) {
+      return ResultModel.createError(
+          String.format("Parameters %s can be used only for creating a Partitioned Region",
+              Strings.join(PARTITION_ATTRIBUTES, ", ")));
+    }
+
+    // validate colocation for partitioned regions
+    if (prColocatedWith != null) {
+      DistributedRegionMXBean colocatedRegionBean =
+          getManagementService().getDistributedRegionMXBean(prColocatedWith);
+
+      if (colocatedRegionBean == null) {
         return ResultModel.createError(CliStrings.format(
             CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_REGION_PATH_FOR_0_REGIONPATH_1_NOT_FOUND,
-            CliStrings.CREATE_REGION__USEATTRIBUTESFROM, templateRegion));
+            CliStrings.CREATE_REGION__COLOCATEDWITH, prColocatedWith));
       }
 
-      RegionAttributesWrapper<?, ?> wrappedAttributes = getRegionAttributes(cache, templateRegion);
-
-      if (wrappedAttributes == null) {
+      if (!colocatedRegionBean.getRegionType().equals("PARTITION") &&
+          !colocatedRegionBean.getRegionType().equals("PERSISTENT_PARTITION")) {
         return ResultModel.createError(CliStrings.format(
-            CliStrings.CREATE_REGION__MSG__COULD_NOT_RETRIEVE_REGION_ATTRS_FOR_PATH_0_VERIFY_REGION_EXISTS,
-            templateRegion));
-      }
-
-      if (wrappedAttributes.getRegionAttributes().getPartitionAttributes() == null
-          && functionArgs.hasPartitionAttributes()) {
-        return ResultModel.createError(CliStrings.format(
-            CliStrings.CREATE_REGION__MSG__OPTION_0_CAN_BE_USED_ONLY_FOR_PARTITIONEDREGION,
-            functionArgs.getPartitionArgs().getUserSpecifiedPartitionAttributes()) + " "
-            + CliStrings.format(CliStrings.CREATE_REGION__MSG__0_IS_NOT_A_PARITIONEDREGION,
-                templateRegion));
-      }
-      functionArgs.setTemplateRegion(templateRegion);
-
-      // These attributes will have the actual callback fields (if previously present) nulled out.
-      functionArgs.setRegionAttributes(wrappedAttributes.getRegionAttributes());
-
-      functionArgs
-          .setCacheListeners(wrappedAttributes.getCacheListenerClasses().toArray(new ClassName[0]));
-      functionArgs.setCacheWriter(wrappedAttributes.getCacheWriterClass());
-      functionArgs.setCacheLoader(wrappedAttributes.getCacheLoaderClass());
-      functionArgs.setCompressor(wrappedAttributes.getCompressorClass());
-      functionArgs.setKeyConstraint(wrappedAttributes.getKeyConstraintClass());
-      functionArgs.setValueConstraint(wrappedAttributes.getValueConstraintClass());
-    }
-
-    if (cacheListener != null) {
-      functionArgs.setCacheListeners(cacheListener);
-    }
-
-    if (cacheLoader != null) {
-      functionArgs.setCacheLoader(cacheLoader);
-    }
-
-    if (cacheWriter != null) {
-      functionArgs.setCacheWriter(cacheWriter);
-    }
-
-    if (compressor != null) {
-      functionArgs.setCompressor(compressor);
-    }
-
-    if (keyConstraint != null) {
-      functionArgs.setKeyConstraint(keyConstraint);
-    }
-
-    if (valueConstraint != null) {
-      functionArgs.setValueConstraint(valueConstraint);
-    }
-
-    DistributedSystemMXBean dsMBean = getDSMBean();
-    // validating colocation
-    if (functionArgs.hasPartitionAttributes()) {
-      if (prColocatedWith != null) {
-        ManagementService mgmtService = getManagementService();
-        DistributedRegionMXBean distributedRegionMXBean =
-            mgmtService.getDistributedRegionMXBean(prColocatedWith);
-        if (distributedRegionMXBean == null) {
-          return ResultModel.createError(CliStrings.format(
-              CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_REGION_PATH_FOR_0_REGIONPATH_1_NOT_FOUND,
-              CliStrings.CREATE_REGION__COLOCATEDWITH, prColocatedWith));
-        }
-        String regionType = distributedRegionMXBean.getRegionType();
-        if (!(DataPolicy.PARTITION.toString().equals(regionType)
-            || DataPolicy.PERSISTENT_PARTITION.toString().equals(regionType))) {
-          return ResultModel.createError(CliStrings.format(
-              CliStrings.CREATE_REGION__MSG__COLOCATEDWITH_REGION_0_IS_NOT_PARTITIONEDREGION,
-              new Object[] {prColocatedWith}));
-        }
+            CliStrings.CREATE_REGION__MSG__COLOCATEDWITH_REGION_0_IS_NOT_PARTITIONEDREGION,
+            (Object) prColocatedWith));
       }
     }
 
-    // validating gateway senders
+    // validate and set gateway senders
     if (gatewaySenderIds != null) {
       Set<String> existingGatewaySenders =
-          Arrays.stream(dsMBean.listGatewaySenders()).collect(Collectors.toSet());
-      if (existingGatewaySenders.size() == 0) {
+          Arrays.stream(getDSMBean().listGatewaySenders()).collect(Collectors.toSet());
+      if (existingGatewaySenders.isEmpty()) {
         return ResultModel
             .createError(CliStrings.CREATE_REGION__MSG__NO_GATEWAYSENDERS_IN_THE_SYSTEM);
-      } else {
-        Set<String> specifiedGatewaySenders =
-            Arrays.stream(gatewaySenderIds).collect(Collectors.toSet());
-        specifiedGatewaySenders.removeAll(existingGatewaySenders);
-        if (!specifiedGatewaySenders.isEmpty()) {
-          return ResultModel.createError(CliStrings.format(
-              CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_GATEWAYSENDER_ID_UNKNOWN_0,
-              (Object[]) gatewaySenderIds));
-        }
       }
+
+      if (Arrays.stream(gatewaySenderIds).anyMatch(id -> !existingGatewaySenders.contains(id))) {
+        return ResultModel.createError(CliStrings.format(
+            CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_GATEWAYSENDER_ID_UNKNOWN_0,
+            (Object[]) gatewaySenderIds));
+      }
+      regionAttributes.setGatewaySenderIds(StringUtils.join(gatewaySenderIds, ","));
     }
 
-    // validating diskstore with other attributes
+    // validating and set diskstore
     if (diskStore != null) {
-      regionAttributes = functionArgs.getRegionAttributes();
-      if (regionAttributes != null && !regionAttributes.getDataPolicy().withPersistence()) {
+      if (!regionAttributes.getDataPolicy().isPersistent()) {
         String subMessage =
             "Only regions with persistence or overflow to disk can specify DiskStore";
         String message = subMessage + ". "
             + CliStrings.format(
                 CliStrings.CREATE_REGION__MSG__USE_ATTRIBUTES_FROM_REGION_0_IS_NOT_WITH_PERSISTENCE,
-                new Object[] {String.valueOf(functionArgs.getTemplateRegion())});
-
+                new Object[] {templateRegion});
         return ResultModel.createError(message);
       }
 
-      if (!diskStoreExists(cache, diskStore)) {
+      if (!diskStoreExists(diskStore)) {
         return ResultModel.createError(CliStrings.format(
             CliStrings.CREATE_REGION__MSG__SPECIFY_VALID_DISKSTORE_UNKNOWN_DISKSTORE_0,
             new Object[] {diskStore}));
       }
+      regionAttributes.setDiskStoreName(diskStore);
     }
 
     // additional authorization
-    if ((functionArgs.getRegionShortcut() != null
-        && functionArgs.getRegionShortcut().isPersistent())
-        || isAttributePersistent(functionArgs.getRegionAttributes())) {
+    if (regionAttributes.getDataPolicy().isPersistent()) {
       authorize(ResourcePermission.Resource.CLUSTER, ResourcePermission.Operation.WRITE,
           ResourcePermission.Target.DISK);
     }
 
     // validating the groups
     Set<DistributedMember> membersToCreateRegionOn = findMembers(groups, null);
-    // just in case we found no members with this group name
     if (membersToCreateRegionOn.isEmpty()) {
       if (groups == null || groups.length == 0) {
         return ResultModel.createError(CliStrings.NO_MEMBERS_FOUND_MESSAGE);
-      } else {
-        return ResultModel.createError(
-            CliStrings.format(CliStrings.CREATE_REGION__MSG__GROUPS_0_ARE_INVALID,
-                (Object[]) groups));
       }
+      return ResultModel.createError(
+          CliStrings.format(CliStrings.CREATE_REGION__MSG__GROUPS_0_ARE_INVALID,
+              (Object[]) groups));
     }
+
+    // generate the RegionConfig object for passing to distributed function and persisting
+    if (cacheListener != null) {
+      // clean the old tempalte region's cache listener
+      regionAttributes.getCacheListeners().clear();
+      Arrays.stream(cacheListener)
+          .map(cl -> new DeclarableType(cl.getClassName(), cl.getInitProperties()))
+          .forEach(regionAttributes.getCacheListeners()::add);
+    }
+
+    if (cacheLoader != null) {
+      regionAttributes.setCacheLoader(
+          new DeclarableType(cacheLoader.getClassName(), cacheLoader.getInitProperties()));
+    }
+
+    if (cacheWriter != null) {
+      regionAttributes.setCacheWriter(
+          new DeclarableType(cacheWriter.getClassName(), cacheWriter.getInitProperties()));
+    }
+
+    if (compressor != null) {
+      regionAttributes.setCompressor(new ClassNameType(compressor));
+    }
+
+    if (keyConstraint != null) {
+      regionAttributes.setKeyConstraint(keyConstraint);
+    }
+
+    if (valueConstraint != null) {
+      regionAttributes.setValueConstraint(valueConstraint);
+    }
+
+    if (asyncEventQueueIds != null) {
+      regionAttributes.setAsyncEventQueueIds(Strings.join(asyncEventQueueIds, ","));
+    }
+
+    if (offHeap != null) {
+      regionAttributes.setOffHeap(offHeap);
+    }
+    if (concurrencyLevel != null) {
+      regionAttributes.setConcurrencyLevel(concurrencyLevel.toString());
+    }
+    if (enableAsyncConflation != null) {
+      regionAttributes.setEnableAsyncConflation(enableAsyncConflation);
+    }
+    if (cloningEnabled != null) {
+      regionAttributes.setCloningEnabled(cloningEnabled);
+    }
+    if (concurrencyChecksEnabled != null) {
+      regionAttributes.setConcurrencyChecksEnabled(concurrencyChecksEnabled);
+    }
+    if (mcastEnabled != null) {
+      regionAttributes.setMulticastEnabled(mcastEnabled);
+    }
+    if (statisticsEnabled != null) {
+      regionAttributes.setStatisticsEnabled(statisticsEnabled);
+    }
+    if (enableSubscriptionConflation != null) {
+      regionAttributes.setEnableSubscriptionConflation(enableSubscriptionConflation);
+    }
+    if (diskSynchronous != null) {
+      regionAttributes.setDiskSynchronous(diskSynchronous);
+    }
+
+    regionAttributes.updateEntryIdleTime(entryExpirationIdleTime, entryExpirationIdleTimeAction,
+        entryIdleTimeCustomExpiry);
+    regionAttributes.updateEntryTimeToLive(entryExpirationTTL, entryExpirationTTLAction,
+        entryTTLCustomExpiry);
+    regionAttributes.updateRegionIdleTime(regionExpirationIdleTime, regionExpirationIdleTimeAction,
+        null);
+    regionAttributes.updateRegionTimeToLive(regionExpirationTTL, regionExpirationTTLAction, null);
+
+    // unlike expiration attributes, if any single eviction attributes is set, we will replace
+    // the template eviction attributes with this new eviction attributes. we do not combine
+    // the old and new.
+    RegionAttributesType.EvictionAttributes evictionAttributes =
+        RegionAttributesType.EvictionAttributes
+            .generate(evictionAction, evictionMaxMemory, evictionEntryCount, evictionObjectSizer);
+    if (evictionAttributes != null) {
+      regionAttributes.setEvictionAttributes(evictionAttributes);
+    }
+
+    // creating the RegionFunctionArgs
+    CreateRegionFunctionArgs functionArgs =
+        new CreateRegionFunctionArgs(regionPath, regionConfig, ifNotExists);
 
     List<CliFunctionResult> regionCreateResults = executeAndGetFunctionResult(
         RegionCreateFunction.INSTANCE, functionArgs, membersToCreateRegionOn);
 
     ResultModel resultModel = ResultModel.createMemberStatusResult(regionCreateResults);
-    InternalConfigurationPersistenceService service =
-        (InternalConfigurationPersistenceService) getConfigurationPersistenceService();
-
+    InternalConfigurationPersistenceService service = getConfigurationPersistenceService();
     if (service == null) {
       return resultModel;
     }
 
-    // otherwise, prepare the regionConfig for persistence
+    if (resultModel.isSuccessful() && regionCreateResults.stream()
+        .anyMatch(
+            res -> res.getStatusMessage() != null && res.getStatusMessage().contains("Skipping"))) {
+      return resultModel;
+    }
+
+    // persist the RegionConfig object if the function is successful on all members
     if (resultModel.isSuccessful()) {
       verifyDistributedRegionMbean(cache, regionPath);
-      RegionConfig config = (new RegionConfigFactory()).generate(functionArgs);
+
       // the following is a temporary solution before lucene make the change to create region first
       // before creating the lucene index.
       // GEODE-3924
@@ -466,16 +488,15 @@ public class CreateRegionCommand extends SingleGfshCommand {
       RegionConfig regionConfigFromServer =
           service.getJaxbService().unMarshall(regionXml, RegionConfig.class);
       List<CacheElement> extensions = regionConfigFromServer.getCustomRegionElements();
-      config.getCustomRegionElements().addAll(extensions);
+      regionConfig.getCustomRegionElements().addAll(extensions);
 
-      resultModel.setConfigObject(new CreateRegionResultConfig(config,
-          functionArgs.getRegionPath()));
+      resultModel.setConfigObject(new CreateRegionResult(regionConfig, regionPath));
     }
 
     return resultModel;
   }
 
-  private class CreateRegionResultConfig {
+  private class CreateRegionResult {
     RegionConfig getRegionConfig() {
       return regionConfig;
     }
@@ -487,7 +508,7 @@ public class CreateRegionCommand extends SingleGfshCommand {
     private final RegionConfig regionConfig;
     private final String fullRegionPath;
 
-    public CreateRegionResultConfig(RegionConfig regionConfig, String fullRegionPath) {
+    public CreateRegionResult(RegionConfig regionConfig, String fullRegionPath) {
       this.regionConfig = regionConfig;
       this.fullRegionPath = fullRegionPath;
     }
@@ -499,7 +520,7 @@ public class CreateRegionCommand extends SingleGfshCommand {
       return false;
     }
 
-    CreateRegionResultConfig regionResultConfigObject = (CreateRegionResultConfig) configObject;
+    CreateRegionResult regionResultConfigObject = (CreateRegionResult) configObject;
     RegionConfig regionConfig = regionResultConfigObject.getRegionConfig();
     String regionPath = regionResultConfigObject.getFullRegionPath();
 
@@ -554,91 +575,56 @@ public class CreateRegionCommand extends SingleGfshCommand {
     return false;
   }
 
-  RegionAttributesWrapper getRegionAttributes(InternalCache cache, String regionPath) {
-    if (!isClusterWideSameConfig(cache, regionPath)) {
-      throw new IllegalStateException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__USE_ATTRIBUTES_FORM_REGIONS_EXISTS_BUT_DIFFERENT_SCOPE_OR_DATAPOLICY_USE_DESCRIBE_REGION_FOR_0,
-          regionPath));
-    }
-    RegionAttributesWrapper attributes = null;
-
-    // First check whether the region exists on a this manager, if yes then no
-    // need to use FetchRegionAttributesFunction to fetch RegionAttributes
-    try {
-      attributes = FetchRegionAttributesFunction.getRegionAttributes(cache, regionPath);
-    } catch (IllegalArgumentException e) {
-      /* region doesn't exist on the manager */
+  private void failIfRegionAlreadyExists(String regionPath, RegionShortcut regionShortcut,
+      String[] groups) throws EntityExistsException {
+    /*
+     * Adding name collision check for regions created with regionShortcut only.
+     * Regions can be categories as Proxy(replicate/partition), replicate/partition, and local
+     * For concise purpose: we call existing region (E) and region to be created (C)
+     */
+    DistributedRegionMXBean regionBean =
+        getManagementService().getDistributedRegionMXBean(regionPath);
+    if (regionBean == null || regionShortcut == null) {
+      return;
     }
 
-    if (attributes == null) {
-      // find first member which has the region
-      Set<DistributedMember> regionAssociatedMembers = findMembersForRegion(regionPath);
-      if (regionAssociatedMembers != null && !regionAssociatedMembers.isEmpty()) {
-        DistributedMember distributedMember = regionAssociatedMembers.iterator().next();
-        ResultCollector<?, ?> resultCollector =
-            executeFunction(FetchRegionAttributesFunction.INSTANCE, regionPath, distributedMember);
-        List<?> resultsList = (List<?>) resultCollector.getResult();
+    String existingDataPolicy = regionBean.getRegionType();
+    // fail if either C is local, or E is local or E and C are both non-proxy regions. this is to
+    // make sure local, replicate or partition regions have unique names across the entire cluster
+    boolean existingRegionIsNotProxy = regionBean.getMemberCount() > regionBean.getEmptyNodes();
+    boolean toBeCreatedIsNotProxy = !regionShortcut.isProxy();
+    if (regionShortcut.isLocal() || existingDataPolicy.equals("NORMAL") || (toBeCreatedIsNotProxy
+        && existingRegionIsNotProxy)) {
+      throw new EntityExistsException(
+          String.format("Region %s already exists on the cluster.", regionPath));
+    }
 
-        if (resultsList != null && !resultsList.isEmpty()) {
-          for (Object object : resultsList) {
-            if (object instanceof IllegalArgumentException) {
-              throw (IllegalArgumentException) object;
-            } else if (object instanceof Throwable) {
-              Throwable th = (Throwable) object;
-              LogWrapper.getInstance(getCache()).info(ExceptionUtils.getStackTrace((th)));
-              throw new IllegalArgumentException(CliStrings.format(
-                  CliStrings.CREATE_REGION__MSG__COULD_NOT_RETRIEVE_REGION_ATTRS_FOR_PATH_0_REASON_1,
-                  regionPath, th.getMessage()));
-            } else { // has to be RegionAttributes
-              @SuppressWarnings("unchecked") // to avoid warning :(
-              RegionAttributesWrapper regAttr = ((RegionAttributesWrapper) object);
-              if (attributes == null) {
-                attributes = regAttr;
-                break;
-              } // attributes null check
-            } // not IllegalArgumentException or other throwable
-          } // iterate over list - there should be only one result in the list
-        } // result list is not null or empty
-      } // regionAssociatedMembers is not-empty
-    } // attributes are null because do not exist on local member
+    // after this, one of E and C is proxy region or both are proxy regions.
 
-    return attributes;
+    // we first make sure E and C have the compatible data policy
+    if (regionShortcut.isPartition() && !existingDataPolicy.contains("PARTITION")) {
+      LogService.getLogger().info("Create region command: got EntityExists exception");
+      throw new EntityExistsException("The existing region is not a partitioned region");
+    }
+
+    if (regionShortcut.isReplicate() && !existingDataPolicy.equals("EMPTY")
+        && !existingDataPolicy.contains("REPLICATE") && !existingDataPolicy.contains("PRELOADED")) {
+      throw new EntityExistsException("The existing region is not a replicate region");
+    }
+
+    // then we make sure E and C are on different members
+    Set<String> membersWithThisRegion =
+        Arrays.stream(regionBean.getMembers()).collect(Collectors.toSet());
+    Set<String> membersWithinGroup = findMembers(groups, null).stream()
+        .map(DistributedMember::getName).collect(Collectors.toSet());
+    if (!Collections.disjoint(membersWithinGroup, membersWithThisRegion)) {
+      throw new EntityExistsException(
+          String.format("Region %s already exists on these members: %s.", regionPath,
+              StringUtils.join(membersWithThisRegion, ",")));
+    }
   }
 
-  private boolean isClusterWideSameConfig(InternalCache cache, String regionPath) {
-    ManagementService managementService = getManagementService();
-
-    DistributedSystemMXBean dsMXBean = managementService.getDistributedSystemMXBean();
-
-    Set<DistributedMember> allMembers = getAllNormalMembers();
-
-    RegionAttributesData regionAttributesToValidateAgainst = null;
-    for (DistributedMember distributedMember : allMembers) {
-      ObjectName regionObjectName;
-      try {
-        regionObjectName = dsMXBean
-            .fetchRegionObjectName(CliUtil.getMemberNameOrId(distributedMember), regionPath);
-        RegionMXBean regionMBean =
-            managementService.getMBeanInstance(regionObjectName, RegionMXBean.class);
-        RegionAttributesData regionAttributes = regionMBean.listRegionAttributes();
-
-        if (regionAttributesToValidateAgainst == null) {
-          regionAttributesToValidateAgainst = regionAttributes;
-        } else if (!(regionAttributesToValidateAgainst.getScope()
-            .equals(regionAttributes.getScope())
-            || regionAttributesToValidateAgainst.getDataPolicy()
-                .equals(regionAttributes.getDataPolicy()))) {
-          return false;
-        }
-      } catch (Exception e) {
-        // ignore
-      }
-    }
-
-    return true;
-  }
-
-  boolean regionExists(InternalCache cache, String regionPath) {
+  boolean regionExists(String regionPath) {
     if (regionPath == null || Region.SEPARATOR.equals(regionPath)) {
       return false;
     }
@@ -650,7 +636,7 @@ public class CreateRegionCommand extends SingleGfshCommand {
     return Arrays.stream(allRegionPaths).anyMatch(regionPath::equals);
   }
 
-  private boolean diskStoreExists(InternalCache cache, String diskStoreName) {
+  private boolean diskStoreExists(String diskStoreName) {
     ManagementService managementService = getManagementService();
     DistributedSystemMXBean dsMXBean = managementService.getDistributedSystemMXBean();
     Map<String, String[]> diskstore = dsMXBean.listMemberDiskstore();
@@ -667,16 +653,10 @@ public class CreateRegionCommand extends SingleGfshCommand {
     return false;
   }
 
-  private boolean isAttributePersistent(RegionAttributes attributes) {
-    return attributes != null && attributes.getDataPolicy() != null
-        && attributes.getDataPolicy().toString().contains("PERSISTENT");
-  }
-
   DistributedSystemMXBean getDSMBean() {
     ManagementService managementService = getManagementService();
     return managementService.getDistributedSystemMXBean();
   }
-
 
   public static class Interceptor extends AbstractCliAroundInterceptor {
     @Override

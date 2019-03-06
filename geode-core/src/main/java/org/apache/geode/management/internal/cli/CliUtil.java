@@ -28,6 +28,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +42,7 @@ import java.util.zip.Inflater;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.execute.Execution;
@@ -48,6 +50,7 @@ import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
+import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.ClassPathLoader;
@@ -63,8 +66,8 @@ import org.apache.geode.management.internal.MBeanJMXAdapter;
 import org.apache.geode.management.internal.SystemManagementService;
 import org.apache.geode.management.internal.cli.exceptions.UserErrorException;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
-import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.cli.shell.Gfsh;
+import org.apache.geode.management.internal.configuration.domain.DeclarableTypeInstantiator;
 
 /**
  * This class contains utility methods used by classes used to build the Command Line Interface
@@ -73,6 +76,7 @@ import org.apache.geode.management.internal.cli.shell.Gfsh;
  * @since GemFire 7.0
  */
 public class CliUtil {
+  @Immutable
   public static final FileFilter JAR_FILE_FILTER = new CustomFileFilter(".jar");
 
   public static String cliDependenciesExist(boolean includeGfshDependencies) {
@@ -133,13 +137,12 @@ public class CliUtil {
     allClusterMembers.add(cache.getDistributedSystem().getDistributedMember());
 
     for (DistributedMember member : allClusterMembers) {
-      for (String regionAssociatedMemberName : regionAssociatedMemberNames) {
-        String name = MBeanJMXAdapter.getMemberNameOrId(member);
-        if (name.equals(regionAssociatedMemberName)) {
-          matchedMembers.add(member);
-          if (!returnAll) {
-            return matchedMembers;
-          }
+      List<String> regionAssociatedMemberNamesList = Arrays.asList(regionAssociatedMemberNames);
+      String name = MBeanJMXAdapter.getMemberNameOrUniqueId(member);
+      if (regionAssociatedMemberNamesList.contains(name)) {
+        matchedMembers.add(member);
+        if (!returnAll) {
+          return matchedMembers;
         }
       }
     }
@@ -258,6 +261,18 @@ public class CliUtil {
   public static Set<DistributedMember> findMembers(String[] groups, String[] members,
       InternalCache cache) {
     Set<DistributedMember> allNormalMembers = getAllNormalMembers(cache);
+
+    return findMembers(allNormalMembers, groups, members);
+  }
+
+  /**
+   * Finds all Servers which belong to the given arrays of groups or members. Does not include
+   * locators.
+   */
+  public static Set<DistributedMember> findMembers(String[] groups, String[] members,
+      DistributionManager distributionManager) {
+    Set<DistributedMember> allNormalMembers = new HashSet<DistributedMember>(
+        distributionManager.getNormalDistributionManagerIds());
 
     return findMembers(allNormalMembers, groups, members);
   }
@@ -443,29 +458,33 @@ public class CliUtil {
       }
     } catch (ClassNotFoundException | NoClassDefFoundError e) {
       throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULD_NOT_FIND_CLASS_0_SPECIFIED_FOR_1,
+          CliStrings.format(CliStrings.ERROR__MSG__COULD_NOT_FIND_CLASS_0_SPECIFIED_FOR_1,
               classToLoadName, neededFor),
           e);
     } catch (ClassCastException e) {
       throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__CLASS_SPECIFIED_FOR_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
+          CliStrings.ERROR__MSG__CLASS_0_SPECIFIED_FOR_1_IS_NOT_OF_EXPECTED_TYPE,
           classToLoadName, neededFor), e);
     }
 
     return loadedClass;
   }
 
+  /**
+   * @deprecated use {@link DeclarableTypeInstantiator}
+   */
+  @Deprecated
   public static <K> K newInstance(Class<K> klass, String neededFor) {
     K instance;
     try {
       instance = klass.newInstance();
     } catch (InstantiationException e) {
       throw new RuntimeException(CliStrings.format(
-          CliStrings.CREATE_REGION__MSG__COULD_NOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1, klass,
+          CliStrings.ERROR__MSG__COULD_NOT_INSTANTIATE_CLASS_0_SPECIFIED_FOR_1, klass,
           neededFor), e);
     } catch (IllegalAccessException e) {
       throw new RuntimeException(
-          CliStrings.format(CliStrings.CREATE_REGION__MSG__COULD_NOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
+          CliStrings.format(CliStrings.ERROR__MSG__COULD_NOT_ACCESS_CLASS_0_SPECIFIED_FOR_1,
               klass, neededFor),
           e);
     }
@@ -483,26 +502,6 @@ public class CliUtil {
   public static String resolvePathname(final String pathname) {
     return (StringUtils.isBlank(pathname) ? pathname
         : IOUtils.tryGetCanonicalPathElseGetAbsolutePath(new File(pathname)));
-  }
-
-  public static Result getFunctionResult(ResultCollector<?, ?> rc, String commandName) {
-    Result result;
-    List<Object> results = (List<Object>) rc.getResult();
-    if (results != null) {
-      Object resultObj = results.get(0);
-      if (resultObj instanceof String) {
-        result = ResultBuilder.createInfoResult((String) resultObj);
-      } else if (resultObj instanceof Exception) {
-        result = ResultBuilder.createGemFireErrorResult(((Exception) resultObj).getMessage());
-      } else {
-        result = ResultBuilder.createGemFireErrorResult(
-            CliStrings.format(CliStrings.COMMAND_FAILURE_MESSAGE, commandName));
-      }
-    } else {
-      result = ResultBuilder.createGemFireErrorResult(
-          CliStrings.format(CliStrings.COMMAND_FAILURE_MESSAGE, commandName));
-    }
-    return result;
   }
 
   /***

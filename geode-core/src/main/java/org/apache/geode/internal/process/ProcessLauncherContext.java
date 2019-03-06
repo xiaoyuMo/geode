@@ -36,11 +36,6 @@ public class ProcessLauncherContext {
    */
   private static final boolean REDIRECT_OUTPUT_DEFAULT = false;
 
-  /**
-   * Default value for {@link #getOverriddenDefaults()}
-   */
-  private static final Properties OVERRIDDEN_DEFAULTS_DEFAULT = new Properties();
-
   private static final ThreadLocal<ProcessLauncherContext> DATA = new ThreadLocal<>();
 
   private final boolean redirectOutput;
@@ -74,7 +69,7 @@ public class ProcessLauncherContext {
   public static Properties getOverriddenDefaults() {
     ProcessLauncherContext context = get();
     if (context == null) {
-      return OVERRIDDEN_DEFAULTS_DEFAULT;
+      return new Properties();
     }
     return context.overriddenDefaults();
   }

@@ -119,15 +119,18 @@ public class EntriesSet extends AbstractSet {
       this.nextElem = moveNext();
     }
 
+    @Override
     public void remove() {
       throw new UnsupportedOperationException(
           "This iterator does not support modification");
     }
 
+    @Override
     public boolean hasNext() {
       return (this.nextElem != null);
     }
 
+    @Override
     public Object next() {
       final Object result = this.nextElem;
       if (result != null) {
@@ -178,7 +181,11 @@ public class EntriesSet extends AbstractSet {
                 } else if (ignoreCopyOnReadForQuery) {
                   result = ((NonTXEntry) re).getValue(true);
                 } else {
-                  result = re.getValue();
+                  if ((re instanceof TXEntry)) {
+                    result = ((TXEntry) re).getValue(allowTombstones);
+                  } else {
+                    result = re.getValue();
+                  }
                 }
                 if (result != null && !Token.isInvalidOrRemoved(result)) { // fix for bug 34583
                   return result;

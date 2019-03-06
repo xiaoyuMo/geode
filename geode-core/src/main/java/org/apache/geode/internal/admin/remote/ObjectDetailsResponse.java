@@ -24,6 +24,7 @@ import java.util.Set;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.GemFireCacheException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheStatistics;
 import org.apache.geode.cache.Region;
@@ -81,6 +82,7 @@ public class ObjectDetailsResponse extends AdminResponse implements Cancellable 
     }
   }
 
+  @Override
   public synchronized void cancel() {
     cancelled = true;
   }
@@ -98,6 +100,7 @@ public class ObjectDetailsResponse extends AdminResponse implements Cancellable 
     return this.stats;
   }
 
+  @Override
   public int getDSFID() {
     return OBJECT_DETAILS_RESPONSE;
   }
@@ -125,6 +128,7 @@ public class ObjectDetailsResponse extends AdminResponse implements Cancellable 
 
 
   // Holds the last result of getObjectName to optimize the next call
+  @MakeNotStatic
   private static Object lastObjectNameFound = null;
 
   static Object getObjectName(Region r, Object objName) throws CacheException {

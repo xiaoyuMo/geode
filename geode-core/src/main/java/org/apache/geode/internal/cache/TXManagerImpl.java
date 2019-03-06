@@ -39,7 +39,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.GemFireException;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheTransactionManager;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.cache.TransactionDataRebalancedException;
@@ -85,6 +88,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   private final ThreadLocal<Boolean> pauseJTA;
 
+  @MakeNotStatic
   private static TXManagerImpl currentInstance = null;
 
   // The unique transaction ID for this Manager
@@ -98,6 +102,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   private final CachePerfStats cachePerfStats;
 
+  @Immutable
   private static final TransactionListener[] EMPTY_LISTENERS = new TransactionListener[0];
 
   /**
@@ -135,6 +140,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
         // TODO: inner class is serializable but outer class is not
         private static final long serialVersionUID = -4156018226167594134L;
 
+        @Override
         protected boolean removeEldestEntry(Entry eldest) {
           if (logger.isDebugEnabled()) {
             logger.debug("TX: removing client initiated transaction from failover map:{} :{}",
@@ -147,6 +153,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   /**
    * A flag to allow persistent transactions. public for testing.
    */
+  @MutableForTesting
   public static boolean ALLOW_PERSISTENT_TRANSACTIONS =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "ALLOW_PERSISTENT_TRANSACTIONS");
 
@@ -212,10 +219,12 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * @return the current TransactionWriter
    * @see TransactionWriter
    */
+  @Override
   public TransactionWriter getWriter() {
     return writer;
   }
 
+  @Override
   public void setWriter(TransactionWriter writer) {
     if (this.cache.isClient()) {
       throw new IllegalStateException(
@@ -224,6 +233,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     this.writer = writer;
   }
 
+  @Override
   public TransactionListener getListener() {
     synchronized (this.txListeners) {
       if (this.txListeners.isEmpty()) {
@@ -237,6 +247,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Override
   public TransactionListener[] getListeners() {
     synchronized (this.txListeners) {
       int size = this.txListeners.size();
@@ -250,6 +261,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Override
   public TransactionListener setListener(TransactionListener newListener) {
     synchronized (this.txListeners) {
       TransactionListener result = getListener();
@@ -264,6 +276,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Override
   public void addListener(TransactionListener aListener) {
     if (aListener == null) {
       throw new IllegalArgumentException(
@@ -276,6 +289,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Override
   public void removeListener(TransactionListener aListener) {
     if (aListener == null) {
       throw new IllegalArgumentException(
@@ -288,6 +302,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Override
   public void initListeners(TransactionListener[] newListeners) {
     synchronized (this.txListeners) {
       if (!this.txListeners.isEmpty()) {
@@ -316,6 +331,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Build a new {@link TXId}, use it as part of the transaction state and associate with the
    * current thread using a {@link ThreadLocal}.
    */
+  @Override
   public void begin() {
     checkClosed();
     {
@@ -390,6 +406,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * thread is no longer associated with a transaction.
    *
    */
+  @Override
   public void commit() throws CommitConflictException {
     checkClosed();
 
@@ -507,6 +524,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Roll back the transaction associated with the current thread. When this method completes, the
    * thread is no longer associated with a transaction.
    */
+  @Override
   public void rollback() {
     checkClosed();
     TXStateProxy tx = getTXState();
@@ -579,6 +597,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Reports the existence of a Transaction for this thread
    *
    */
+  @Override
   public boolean exists() {
     return null != getTXState();
   }
@@ -587,6 +606,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * Gets the current transaction identifier or null if no transaction exists
    *
    */
+  @Override
   public TransactionId getTransactionId() {
     TXStateProxy t = getTXState();
     TransactionId ret = null;
@@ -684,6 +704,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
+  @Immutable
   private static final TXStateProxy PAUSED = new PausedTXStateProxyImpl();
 
   /**
@@ -1117,6 +1138,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     return this.localTxMap.size();
   }
 
+  @Override
   public void memberDeparted(DistributionManager distributionManager, InternalDistributedMember id,
       boolean crashed) {
     synchronized (this.hostedTXStates) {
@@ -1136,11 +1158,14 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     expireClientTransactionsSentFromDepartedProxy(id);
   }
 
+  @Override
   public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {}
 
+  @Override
   public void quorumLost(DistributionManager distributionManager,
       Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
+  @Override
   public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
       InternalDistributedMember whoSuspected, String reason) {}
 
@@ -1199,7 +1224,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     }
   }
 
-  @TestingOnly
+  @VisibleForTesting
   /** remove the given TXStates for test */
   public void removeTransactions(Set<TXId> txIds, boolean distribute) {
     synchronized (this.hostedTXStates) {
@@ -1399,6 +1424,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
   private ConcurrentMap<TransactionId, TXStateProxy> suspendedTXs =
       new ConcurrentHashMap<TransactionId, TXStateProxy>();
 
+  @Override
   public TransactionId suspend() {
     return suspend(TimeUnit.MINUTES);
   }
@@ -1430,6 +1456,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     return null;
   }
 
+  @Override
   public void resume(TransactionId transactionId) {
     if (transactionId == null) {
       throw new IllegalStateException(
@@ -1447,10 +1474,12 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     resumeProxy(txProxy);
   }
 
+  @Override
   public boolean isSuspended(TransactionId transactionId) {
     return this.suspendedTXs.containsKey(transactionId);
   }
 
+  @Override
   public boolean tryResume(TransactionId transactionId) {
     if (transactionId == null || getTXState() != null) {
       return false;
@@ -1498,6 +1527,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     return threadq;
   }
 
+  @Override
   public boolean tryResume(TransactionId transactionId, long time, TimeUnit unit) {
     if (transactionId == null || getTXState() != null || !exists(transactionId)) {
       return false;
@@ -1533,6 +1563,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     LockSupport.parkNanos(timeout);
   }
 
+  @Override
   public boolean exists(TransactionId transactionId) {
     return isHostedTxInProgress((TXId) transactionId) || isSuspended(transactionId)
         || this.localTxMap.containsKey(transactionId);
@@ -1709,6 +1740,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
           CustomEntryConcurrentHashMap.DEFAULT_CONCURRENCY_LEVEL, true,
           new RefCountMapEntryCreator());
 
+  @Immutable
   private static final MapCallback<AbstractRegionEntry, RefCountMapEntry, Object, Object> incCallback =
       new MapCallback<AbstractRegionEntry, RefCountMapEntry, Object, Object>() {
         @Override
@@ -1728,6 +1760,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
         }
       };
 
+  @Immutable
   private static final MapCallback<AbstractRegionEntry, RefCountMapEntry, Object, Object> decCallback =
       new MapCallback<AbstractRegionEntry, RefCountMapEntry, Object, Object>() {
         @Override
@@ -1891,6 +1924,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
     return result;
   }
 
+  @Override
   public void setDistributed(boolean flag) {
     checkClosed();
     TXStateProxy tx = getTXState();
@@ -1910,6 +1944,7 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
    * of gemfire property "distributed-transactions" if set. If this is also not set, it returns the
    * default value of this property.
    */
+  @Override
   public boolean isDistributed() {
     Boolean value = isTXDistributed.get();
     // This can be null if not set in setDistributed().
@@ -1931,6 +1966,11 @@ public class TXManagerImpl implements CacheTransactionManager, MembershipListene
 
   public Set<TXId> getScheduledToBeRemovedTx() {
     return scheduledToBeRemovedTx;
+  }
+
+  @VisibleForTesting
+  public int getFailoverMapSize() {
+    return failoverMap.size();
   }
 
 }

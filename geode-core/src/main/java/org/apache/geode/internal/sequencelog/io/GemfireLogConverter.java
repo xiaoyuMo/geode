@@ -28,6 +28,7 @@ import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.internal.ExitCode;
 import org.apache.geode.internal.logging.DateFormatter;
 import org.apache.geode.internal.sequencelog.GraphType;
@@ -43,7 +44,8 @@ public class GemfireLogConverter {
   private static final Pattern DATE_PATTERN =
       Pattern.compile("(\\d\\d\\d\\d)/(\\d\\d)/(\\d\\d) (\\d\\d):(\\d\\d):(\\d\\d).(\\d\\d\\d)");
   private static final Pattern ALL = Pattern.compile(".*");
-  private static ArrayList<Test> tests = buildTests();
+  @Immutable
+  private static final ArrayList<Test> tests = buildTests();
 
 
   public static void convertFiles(OutputStream output, File[] files) throws IOException {
@@ -95,6 +97,7 @@ public class GemfireLogConverter {
     // <vm_5_thr_11_dataStore5_hs20e_16643> tid=0x17] Starting DistributionManager
     // hs20e(16643)<v1>:6872/49575.
     tests.add(new Test("Starting DistributionManager (.*)\\.") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String member = matcher.group(1);
         context.currentMember = member;
@@ -107,6 +110,7 @@ public class GemfireLogConverter {
     // tid=0x71] Member at hs20e(16640)<v1>:50554/49570 unexpectedly left the distributed cache:
     // departed JGroups view
     tests.add(new Test("Member at (.*) unexpectedly left the distributed cache") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String member = matcher.group(1);
         context.appender.write(new Transition(timestamp, GraphType.MEMBER, "member", "crashed",
@@ -123,6 +127,7 @@ public class GemfireLogConverter {
     // [info 2011/04/27 00:49:33.154 PDT dataStoregemfire5_hs20e_16643 <Distributed system shutdown
     // hook> tid=0x18] VM is exiting - shutting down distributed system
     tests.add(new Test("VM is exiting - shutting down distributed system") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String member = context.currentMember;
         context.appender.write(new Transition(timestamp, GraphType.MEMBER, "member", "stop",
@@ -140,6 +145,7 @@ public class GemfireLogConverter {
     // created = Wed Apr 27 00:43:41 PDT 2011; server = false; copyOnRead = false; lockLease = 120;
     // lockTimeout = 60]: Now closing.
     tests.add(new Test("GemFireCache .*Now closing") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String member = context.currentMember;
         context.appender.write(new Transition(timestamp, GraphType.MEMBER, "member", "stop",
@@ -156,6 +162,7 @@ public class GemfireLogConverter {
     // <vm_3_thr_6_dataStore3_hs20e_16635> tid=0xaf] Shutting down DistributionManager
     // hs20e(16635)<v1>:54340/49574.
     tests.add(new Test("Shutting down DistributionManager") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String member = context.currentMember;
         context.appender.write(new Transition(timestamp, GraphType.MEMBER, "member", "stop",
@@ -175,6 +182,7 @@ public class GemfireLogConverter {
     // [info 2011/04/27 00:44:39.811 PDT dataStoregemfire5_hs20e_16643
     // <vm_5_thr_11_dataStore5_hs20e_16643> tid=0x17] initializing region __PR
     tests.add(new Test("initializing region (.*)") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String region = matcher.group(1);
         context.appender.write(new Transition(timestamp, GraphType.REGION, region, "create",
@@ -185,6 +193,7 @@ public class GemfireLogConverter {
     // <vm_6_thr_10_peer_2_1_pcc40_11040> tid=0x18] Partitioned Region /Region_GlobalVillage is
     // created with prId=1
     tests.add(new Test("Partitioned Region /(.*) is created with") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String region = matcher.group(1);
         context.appender.write(new Transition(timestamp, GraphType.REGION, region, "create",
@@ -195,6 +204,7 @@ public class GemfireLogConverter {
     // Processor 1> tid=0x8b] Region _B__partitionedRegion_1 requesting initial image from
     // hs20e(16650)<v1>:13093/49571
     tests.add(new Test(" Region (.*) requesting initial image from (.*)") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String region = matcher.group(1);
         String source = matcher.group(2);
@@ -209,6 +219,7 @@ public class GemfireLogConverter {
     // with data from hs20e(16650)<v1>:13093/49571.
     tests.add(
         new Test(" Region (.*) initialized persistent id: .* diskStoreId (.*) with data from ") {
+          @Override
           public void process(Context context, long timestamp, Matcher matcher) throws IOException {
             String region = matcher.group(1);
             String store = matcher.group(2);
@@ -227,6 +238,7 @@ public class GemfireLogConverter {
     // name with other messages.
     tests.add(new Test(
         " Region /__PR/(.*) was created on this member with the persistent id .* diskStoreId (.*)\\.") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String region = matcher.group(1);
         String store = matcher.group(2);
@@ -245,6 +257,7 @@ public class GemfireLogConverter {
     // created at timestamp 1303890815750 version 0 diskStoreId 0b21e233-e1a9-4b2e-9190-13a191219760
     tests.add(new Test(
         " Region /__PR/(.*) recovered from the local disk. .* new persistent ID.*diskStoreId (.*)") {
+      @Override
       public void process(Context context, long timestamp, Matcher matcher) throws IOException {
         String region = matcher.group(1);
         String store = matcher.group(2);

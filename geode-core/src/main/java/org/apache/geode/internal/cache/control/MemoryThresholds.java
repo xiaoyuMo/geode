@@ -19,6 +19,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.LowMemoryException;
 import org.apache.geode.cache.control.ResourceManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -75,7 +76,8 @@ public class MemoryThresholds {
    * When this property is set to true, a {@link LowMemoryException} is not thrown, even when usage
    * crosses the critical threshold.
    */
-  private static final boolean DISABLE_LOW_MEM_EXCEPTION =
+  @MutableForTesting
+  private static boolean DISABLE_LOW_MEM_EXCEPTION =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "disableLowMemoryException");
 
   /**
@@ -127,6 +129,18 @@ public class MemoryThresholds {
   // Number of bytes used below which memory will leave the eviction state
   private final long evictionThresholdClearBytes;
 
+  /*
+   * Number of eviction or critical state changes that have to occur before the event is delivered.
+   * The default is 0 so we will change states immediately by default.
+   */
+  @MutableForTesting
+  private static int memoryStateChangeTolerance =
+      Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "memoryEventTolerance", 0);
+
+  // Only change state when these counters exceed {@link
+  // HeapMemoryMonitor#memoryStateChangeTolerance}
+  private transient int toleranceCounter;
+
   MemoryThresholds(long maxMemoryBytes) {
     this(maxMemoryBytes, DEFAULT_CRITICAL_PERCENTAGE, DEFAULT_EVICTION_PERCENTAGE);
   }
@@ -168,6 +182,10 @@ public class MemoryThresholds {
     return DISABLE_LOW_MEM_EXCEPTION;
   }
 
+  static void setLowMemoryExceptionDisabled(boolean toDisableLowMemoryException) {
+    DISABLE_LOW_MEM_EXCEPTION = toDisableLowMemoryException;
+  }
+
   public MemoryState computeNextState(final MemoryState oldState, final long bytesUsed) {
     assert oldState != null;
     assert bytesUsed >= 0;
@@ -176,13 +194,14 @@ public class MemoryThresholds {
     if (this.evictionThreshold != 0 && this.criticalThreshold != 0) {
       if (bytesUsed < this.evictionThresholdClearBytes
           || (!oldState.isEviction() && bytesUsed < this.evictionThresholdBytes)) {
+        toleranceCounter = 0;
         return MemoryState.NORMAL;
       }
       if (bytesUsed < this.criticalThresholdClearBytes
           || (!oldState.isCritical() && bytesUsed < this.criticalThresholdBytes)) {
-        return MemoryState.EVICTION;
+        return checkToleranceAndGetNextState(MemoryState.EVICTION, oldState);
       }
-      return MemoryState.EVICTION_CRITICAL;
+      return checkToleranceAndGetNextState(MemoryState.EVICTION_CRITICAL, oldState);
     }
 
     // Are both eviction and critical thresholds disabled?
@@ -194,18 +213,20 @@ public class MemoryThresholds {
     if (this.evictionThreshold == 0) {
       if (bytesUsed < this.criticalThresholdClearBytes
           || (!oldState.isCritical() && bytesUsed < this.criticalThresholdBytes)) {
+        toleranceCounter = 0;
         return MemoryState.EVICTION_DISABLED;
       }
-      return MemoryState.EVICTION_DISABLED_CRITICAL;
+      return checkToleranceAndGetNextState(MemoryState.EVICTION_DISABLED_CRITICAL, oldState);
     }
 
     // Just the eviction threshold is enabled
     if (bytesUsed < this.evictionThresholdClearBytes
         || (!oldState.isEviction() && bytesUsed < this.evictionThresholdBytes)) {
+      toleranceCounter = 0;
       return MemoryState.CRITICAL_DISABLED;
     }
 
-    return MemoryState.EVICTION_CRITICAL_DISABLED;
+    return checkToleranceAndGetNextState(MemoryState.EVICTION_CRITICAL_DISABLED, oldState);
   }
 
   @Override
@@ -257,6 +278,14 @@ public class MemoryThresholds {
     return this.evictionThreshold > 0.0f;
   }
 
+  void setMemoryStateChangeTolerance(int memoryStateChangeTolerance) {
+    MemoryThresholds.memoryStateChangeTolerance = memoryStateChangeTolerance;
+  }
+
+  int getMemoryStateChangeTolerance() {
+    return MemoryThresholds.memoryStateChangeTolerance;
+  }
+
   /**
    * Generate a Thresholds object from data available from the DataInput
    *
@@ -279,5 +308,17 @@ public class MemoryThresholds {
     out.writeLong(this.maxMemoryBytes);
     out.writeFloat(this.criticalThreshold);
     out.writeFloat(this.evictionThreshold);
+  }
+
+  /**
+   * To avoid memory spikes in JVMs susceptible to bad heap memory
+   * reads/outliers, we only deliver events if we receive more than
+   * memoryStateChangeTolerance of the same state change.
+   *
+   * @return New state if above tolerance, old state if below
+   */
+  private MemoryState checkToleranceAndGetNextState(MemoryState newState, MemoryState oldState) {
+    return memoryStateChangeTolerance > 0
+        && toleranceCounter++ < memoryStateChangeTolerance ? oldState : newState;
   }
 }

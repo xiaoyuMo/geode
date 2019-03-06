@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 
+import org.apache.geode.internal.tcp.Connection;
 import org.apache.geode.management.internal.cli.commands.ExportStackTraceCommand;
 
 /**
@@ -45,7 +46,7 @@ import org.apache.geode.management.internal.cli.commands.ExportStackTraceCommand
  */
 
 public class PluckStacks {
-  static boolean DEBUG = Boolean.getBoolean("PluckStacks.DEBUG");
+  static final boolean DEBUG = Boolean.getBoolean("PluckStacks.DEBUG");
 
   // only print one stack dump from each file
   static final boolean ONE_STACK = Boolean.getBoolean("oneDump");
@@ -264,7 +265,7 @@ public class PluckStacks {
       // thread.get(2));
       return (stackSize == 8 && thread.get(2).contains("SocketChannelImpl.accept"));
     }
-    if (threadName.startsWith("P2P message reader")) {
+    if (threadName.startsWith(Connection.THREAD_KIND_IDENTIFIER)) {
       return (stackSize <= 14 && (thread.getFirstFrame().contains("FileDispatcherImpl.read")
           || thread.getFirstFrame().contains("FileDispatcher.read")
           || thread.getFirstFrame().contains("SocketDispatcher.read")));

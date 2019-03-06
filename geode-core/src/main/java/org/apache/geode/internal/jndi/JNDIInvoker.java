@@ -38,6 +38,9 @@ import javax.transaction.TransactionManager;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.LogWriter;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.ClassPathLoader;
@@ -45,6 +48,8 @@ import org.apache.geode.internal.datasource.ClientConnectionFactoryWrapper;
 import org.apache.geode.internal.datasource.ConfigProperty;
 import org.apache.geode.internal.datasource.DataSourceCreateException;
 import org.apache.geode.internal.datasource.DataSourceFactory;
+import org.apache.geode.internal.datasource.GemFireBasicDataSource;
+import org.apache.geode.internal.datasource.GemFireConnPooledDataSource;
 import org.apache.geode.internal.jta.TransactionManagerImpl;
 import org.apache.geode.internal.jta.TransactionUtils;
 import org.apache.geode.internal.jta.UserTransactionImpl;
@@ -78,14 +83,16 @@ public class JNDIInvoker {
    * JNDI Context, this may refer to GemFire JNDI Context or external Context, in case the external
    * JNDI tree exists.
    */
+  @MakeNotStatic
   private static Context ctx;
   /**
    * transactionManager TransactionManager, this refers to GemFire TransactionManager only.
    */
+  @MakeNotStatic
   private static TransactionManager transactionManager;
   // most of the following came from the javadocs at:
   // http://static.springsource.org/spring/docs/2.5.x/api/org/springframework/transaction/jta/JtaTransactionManager.html
-  private static String[][] knownJNDIManagers = {{"java:/TransactionManager", "JBoss"},
+  private static final String[][] knownJNDIManagers = {{"java:/TransactionManager", "JBoss"},
       {"java:comp/TransactionManager", "Cosminexus"}, // and many others
       {"java:appserver/TransactionManager", "GlassFish"}, {"java:pm/TransactionManager", "SunONE"},
       {"java:comp/UserTransaction", "Orion, JTOM, BEA WebLogic"},
@@ -109,6 +116,7 @@ public class JNDIInvoker {
   /**
    * Maps data source name to the data source instance itself.
    */
+  @MakeNotStatic
   private static final ConcurrentMap<String, Object> dataSourceMap = new ConcurrentHashMap<>();
 
   /**
@@ -116,9 +124,11 @@ public class JNDIInvoker {
    * transaction manager bound to JNDI context or try to bind itself as a JTA transaction manager.
    * Also region operations will <b>not</b> participate in an ongoing JTA transaction.
    */
-  private static Boolean IGNORE_JTA =
+  @MutableForTesting
+  private static boolean IGNORE_JTA =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "ignoreJTA");
 
+  @Immutable
   private static final DataSourceFactory dataSourceFactory = new DataSourceFactory();
 
   /**
@@ -394,6 +404,16 @@ public class JNDIInvoker {
     } else {
       return null;
     }
+  }
+
+  public static boolean checkForInvalidDataSource(String name) {
+    Object dataSource = dataSourceMap.get(name);
+
+    if (dataSource == null || dataSource instanceof GemFireBasicDataSource
+        || dataSource instanceof GemFireConnPooledDataSource) {
+      return false;
+    }
+    return true;
   }
 
   /**

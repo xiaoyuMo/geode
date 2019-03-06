@@ -18,6 +18,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Set;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.query.AmbiguousNameException;
 import org.apache.geode.cache.query.FunctionDomainException;
 import org.apache.geode.cache.query.NameResolutionException;
@@ -44,6 +45,7 @@ import org.apache.geode.cache.query.types.StructType;
 public class RuntimeIterator extends AbstractCompiledValue {
 
   // token to differentiate null from uninitialized
+  @Immutable
   private static final SelectResults UNINITIALIZED = new ResultsBag(0, null);
   private Object current = UNINITIALIZED;
   private String name;
@@ -57,6 +59,7 @@ public class RuntimeIterator extends AbstractCompiledValue {
   private String index_internal_id = null;
   private int scopeID = -1;
 
+  @Override
   public int getType() {
     return ITERATOR_DEF;
   }
@@ -151,6 +154,7 @@ public class RuntimeIterator extends AbstractCompiledValue {
     this.current = current;
   }
 
+  @Override
   public Object evaluate(ExecutionContext context) {
     Support.Assert(current != UNINITIALIZED,
         "error to evaluate RuntimeIterator without setting current first");
@@ -196,7 +200,7 @@ public class RuntimeIterator extends AbstractCompiledValue {
     // if there are zero arguments and it's an attribute, then defer to
     // AttributeDescriptor
     // to see if there's a match
-    return new AttributeDescriptor(
+    return new AttributeDescriptor(context.getCache().getPdxRegistry(),
         context.getCache().getQueryService().getMethodInvocationAuthorizer(), name)
             .validateReadType(clazz);
   }

@@ -92,6 +92,7 @@ public class PdxType implements DataSerializable {
     }
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.className = DataSerializer.readString(in);
     swizzleGemFireClassNames();
@@ -113,6 +114,7 @@ public class PdxType implements DataSerializable {
     }
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     DataSerializer.writeString(this.className, out);
     {
@@ -227,6 +229,10 @@ public class PdxType implements DataSerializable {
 
   public boolean getNoDomainClass() {
     return this.noDomainClass;
+  }
+
+  public void setNoDomainClass(boolean noDomainClass) {
+    this.noDomainClass = noDomainClass;
   }
 
   public int getTypeId() {

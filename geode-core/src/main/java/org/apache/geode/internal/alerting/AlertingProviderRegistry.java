@@ -16,7 +16,9 @@ package org.apache.geode.internal.alerting;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 
 /**
  * Provides publication of {@code AlertingProvider} that may be initiated by a third party logging
@@ -28,15 +30,17 @@ import org.apache.geode.annotations.TestingOnly;
  */
 public class AlertingProviderRegistry {
 
+  @Immutable
   private static final AlertingProvider NULL_ALERTING_PROVIDER = new NullAlertingProvider();
 
+  @MakeNotStatic
   private static final AlertingProviderRegistry INSTANCE = new AlertingProviderRegistry();
 
   public static AlertingProviderRegistry get() {
     return INSTANCE;
   }
 
-  @TestingOnly
+  @VisibleForTesting
   public static AlertingProvider getNullAlertingProvider() {
     return NULL_ALERTING_PROVIDER;
   }

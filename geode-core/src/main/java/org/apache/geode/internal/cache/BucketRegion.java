@@ -35,6 +35,7 @@ import org.apache.geode.DeltaSerializationException;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.CacheWriter;
 import org.apache.geode.cache.CacheWriterException;
@@ -107,7 +108,9 @@ import org.apache.geode.internal.offheap.annotations.Unretained;
 public class BucketRegion extends DistributedRegion implements Bucket {
   private static final Logger logger = LogService.getLogger();
 
+  @Immutable
   public static final RawValue NULLVALUE = new RawValue(null);
+  @Immutable
   public static final RawValue REQUIRES_ENTRY_LOCK = new RawValue(null);
   /**
    * A special value for the bucket size indicating that this bucket has been destroyed.
@@ -334,10 +337,12 @@ public class BucketRegion extends DistributedRegion implements Bucket {
     return internalRegionArgs.getBucketAdvisor();
   }
 
+  @Override
   public BucketAdvisor getBucketAdvisor() {
     return (BucketAdvisor) getDistributionAdvisor();
   }
 
+  @Override
   public boolean isHosting() {
     return getBucketAdvisor().isHosting();
   }
@@ -708,6 +713,7 @@ public class BucketRegion extends DistributedRegion implements Bucket {
     }
   }
 
+  @Override
   protected void notifyGatewaySender(EnumListenerEvent operation, EntryEventImpl event) {
     // We don't need to clone the event for new Gateway Senders.
     // Preserve the bucket reference for resetting it later.
@@ -1390,6 +1396,7 @@ public class BucketRegion extends DistributedRegion implements Bucket {
     return this.redundancy;
   }
 
+  @Override
   public boolean isPrimary() {
     throw new UnsupportedOperationException(
         String.format("This should never be called on %s",
@@ -1990,6 +1997,7 @@ public class BucketRegion extends DistributedRegion implements Bucket {
     }
   }
 
+  @Override
   public int getId() {
     return getBucketAdvisor().getProxyBucketRegion().getId();
   }
@@ -2051,6 +2059,7 @@ public class BucketRegion extends DistributedRegion implements Bucket {
    *
    * @since GemFire 5.9
    */
+  @Override
   public Set getBucketOwners() {
     return getBucketAdvisor().getProxyBucketRegion().getBucketOwners();
   }

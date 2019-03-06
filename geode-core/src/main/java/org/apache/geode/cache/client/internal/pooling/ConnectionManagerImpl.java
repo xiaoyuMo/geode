@@ -15,6 +15,7 @@
 package org.apache.geode.cache.client.internal.pooling;
 
 import java.net.SocketException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,8 +74,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
   private final String poolName;
   private final PoolStats poolStats;
   protected final long prefillRetry; // ms
-  private final LinkedList/* <PooledConnection> */ availableConnections =
-      new LinkedList/* <PooledConnection> */();
+  private final ArrayDeque<PooledConnection> availableConnections = new ArrayDeque<>();
   protected final ConnectionMap allConnectionsMap = new ConnectionMap();
   private final EndpointManager endpointManager;
   private final int maxConnections;
@@ -181,6 +181,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
    *
    * @see org.apache.geode.cache.client.internal.pooling.ConnectionManager#borrowConnection(long)
    */
+  @Override
   public Connection borrowConnection(long acquireTimeout)
       throws AllConnectionsInUseException, NoAvailableServersException {
 
@@ -213,7 +214,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
       }
 
       while (!availableConnections.isEmpty()) {
-        PooledConnection connection = (PooledConnection) availableConnections.removeFirst();
+        PooledConnection connection = availableConnections.removeFirst();
         try {
           connection.activate();
           return connection;
@@ -273,6 +274,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
    * the limit. They will only violate the limit by 1 connection, and that connection will be
    * destroyed when returned to the pool.
    */
+  @Override
   public Connection borrowConnection(ServerLocation server, long acquireTimeout,
       boolean onlyUseExistingCnx) throws AllConnectionsInUseException, NoAvailableServersException {
     lock.lock();
@@ -280,8 +282,8 @@ public class ConnectionManagerImpl implements ConnectionManager {
       if (shuttingDown) {
         throw new PoolCancelledException();
       }
-      for (Iterator itr = availableConnections.iterator(); itr.hasNext();) {
-        PooledConnection nextConnection = (PooledConnection) itr.next();
+      for (Iterator<PooledConnection> itr = availableConnections.iterator(); itr.hasNext();) {
+        PooledConnection nextConnection = itr.next();
         try {
           nextConnection.activate();
           if (nextConnection.getServer().equals(server)) {
@@ -341,6 +343,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
     return connection;
   }
 
+  @Override
   public Connection exchangeConnection(Connection oldConnection,
       Set/* <ServerLocation> */ excludedServers, long acquireTimeout)
       throws AllConnectionsInUseException {
@@ -354,8 +357,8 @@ public class ConnectionManagerImpl implements ConnectionManager {
       if (shuttingDown) {
         throw new PoolCancelledException();
       }
-      for (Iterator itr = availableConnections.iterator(); itr.hasNext();) {
-        PooledConnection nextConnection = (PooledConnection) itr.next();
+      for (Iterator<PooledConnection> itr = availableConnections.iterator(); itr.hasNext();) {
+        PooledConnection nextConnection = itr.next();
         if (!excludedServers.contains(nextConnection.getServer())) {
           itr.remove();
           try {
@@ -492,12 +495,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
         }
       }
 
-      for (Iterator itr = availableConnections.iterator(); itr.hasNext();) {
-        PooledConnection conn = (PooledConnection) itr.next();
-        if (badConnections.contains(conn)) {
-          itr.remove();
-        }
-      }
+      availableConnections.removeIf(badConnections::contains);
 
       connectionCount -= badConnections.size();
 
@@ -525,10 +523,12 @@ public class ConnectionManagerImpl implements ConnectionManager {
    * org.apache.geode.cache.client.internal.pooling.ConnectionManager#returnConnection(org.apache.
    * geode.cache.client.internal.Connection)
    */
+  @Override
   public void returnConnection(Connection connection) {
     returnConnection(connection, true);
   }
 
+  @Override
   public void returnConnection(Connection connection, boolean accessed) {
 
     assert connection instanceof PooledConnection;
@@ -585,6 +585,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
   /*
    * (non-Javadoc)
    */
+  @Override
   public void start(ScheduledExecutorService backgroundProcessor) {
     this.backgroundProcessor = backgroundProcessor;
     String name = "poolLoadConditioningMonitor-" + getPoolName();
@@ -606,6 +607,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
    *
    * @see org.apache.geode.cache.client.internal.pooling.ConnectionManager#close(boolean, long)
    */
+  @Override
   public void close(boolean keepAlive) {
     if (logger.isDebugEnabled()) {
       logger.debug("Shutting down connection manager with keepAlive {}", keepAlive);
@@ -641,6 +643,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
     allConnectionsMap.close(keepAlive);
   }
 
+  @Override
   public void emergencyClose() {
     shuttingDown = true;
     if (this.loadConditioningProcessor != null) {
@@ -702,6 +705,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
     return true;
   }
 
+  @Override
   public int getConnectionCount() {
     return this.connectionCount;
   }
@@ -710,6 +714,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
     return this.poolStats;
   }
 
+  @Override
   public Connection getConnection(Connection conn) {
     if (conn instanceof PooledConnection) {
       return ((PooledConnection) conn).getConnection();
@@ -782,6 +787,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
   }
 
   protected class LifetimeExpireConnectionsTask implements Runnable {
+    @Override
     public void run() {
       try {
         allConnectionsMap.checkLifetimes();
@@ -800,6 +806,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
   }
 
   protected class IdleExpireConnectionsTask implements Runnable {
+    @Override
     public void run() {
       try {
         getPoolStats().incIdleCheck();
@@ -1408,11 +1415,13 @@ public class ConnectionManagerImpl implements ConnectionManager {
     }
   }
 
+  @Override
   public void activate(Connection conn) {
     assert conn instanceof PooledConnection;
     ((PooledConnection) conn).activate();
   }
 
+  @Override
   public void passivate(Connection conn, boolean accessed) {
     assert conn instanceof PooledConnection;
     ((PooledConnection) conn).passivate(accessed);

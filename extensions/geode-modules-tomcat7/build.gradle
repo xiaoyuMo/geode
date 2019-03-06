@@ -1,3 +1,5 @@
+import org.apache.geode.gradle.plugins.DependencyConstraints
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,42 +19,44 @@
 
 evaluationDependsOn(":geode-core")
 
+
+
 dependencies {
+  compile(platform(project(':boms:geode-all-bom')))
   compile(project(':geode-core'))
-  compile('mx4j:mx4j:' + project.'mx4j.version')
-  compile('javax.servlet:javax.servlet-api:' + project.'javax.servlet-api.version')
-  integrationTestCompile('org.httpunit:httpunit:' + project.'httpunit.version')
-  integrationTestCompile('junit:junit:' + project.'junit.version')
+  compile('mx4j:mx4j')
+  compile('javax.servlet:javax.servlet-api')
+  integrationTestCompile('org.httpunit:httpunit')
+  integrationTestCompile('junit:junit')
   compile(project(':extensions:geode-modules')) {
     // Remove everything related to Tomcat 6.x
     exclude group: 'org.apache.tomcat'
   }
 
-  compile('org.apache.tomcat:tomcat-catalina:' + project.'tomcat7.version') {
+  compile('org.apache.tomcat:tomcat-catalina:' + DependencyConstraints.get('tomcat7.version')) {
     exclude module: 'tomcat-annotations-api'
     exclude module: 'tomcat-servlet-api'
   }
-  compile('org.apache.tomcat:tomcat-coyote:' + project.'tomcat7.version') {
+  compile('org.apache.tomcat:tomcat-coyote:' + DependencyConstraints.get('tomcat7.version')) {
     exclude module: 'tomcat-servlet-api'
   }
-  compile('org.apache.tomcat:tomcat-juli:' + project.'tomcat7.version')
+  compile('org.apache.tomcat:tomcat-juli:' + DependencyConstraints.get('tomcat7.version'))
 
   integrationTestCompile(project(':geode-dunit')) {
     exclude module: 'geode-core'
   }
   integrationTestCompile(project(':extensions:geode-modules-test'))
 
-  integrationTestRuntime('javax.annotation:jsr250-api:' + project.'javax.jsr250-api.version')
-  integrationTestRuntime('javax.ejb:ejb-api:' + project.'javax.ejb-api.version')
-  integrationTestRuntime('javax.servlet:javax.servlet-api:' + project.'javax.servlet-api.version')
-  integrationTestRuntime('org.eclipse.persistence:javax.persistence:' + project.'javax.persistence-api.version')
-  integrationTestRuntime('xerces:xercesImpl:' + project.'xercesImpl.version')
+  integrationTestRuntime('javax.annotation:jsr250-api')
+  integrationTestRuntime('javax.ejb:ejb-api')
+  integrationTestRuntime('javax.servlet:javax.servlet-api')
+  integrationTestRuntime('org.eclipse.persistence:javax.persistence')
+  integrationTestRuntime('xerces:xercesImpl')
+}
 
-  eclipse.classpath.file {
-    whenMerged { classpath ->
-      classpath.entries.removeAll { entry -> entry.path.contains('geode-modules/build')}
-    }
+eclipse.classpath.file {
+  whenMerged { classpath ->
+    classpath.entries.removeAll { entry -> entry.path.contains('geode-modules/build')}
   }
 }
 
-disableMavenPublishing()

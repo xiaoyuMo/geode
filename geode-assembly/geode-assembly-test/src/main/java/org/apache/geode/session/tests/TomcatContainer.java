@@ -17,6 +17,7 @@ package org.apache.geode.session.tests;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.function.IntSupplier;
 
 import org.apache.commons.io.FileUtils;
 import org.codehaus.cargo.container.configuration.FileConfig;
@@ -50,11 +51,11 @@ public class TomcatContainer extends ServerContainer {
    * container properties (i.e. locator, local cache, etc.)
    */
   public TomcatContainer(TomcatInstall install, File containerConfigHome,
-      String containerDescriptors) throws IOException {
-    super(install, containerConfigHome, containerDescriptors);
+      String containerDescriptors, IntSupplier portSupplier) throws IOException {
+    super(install, containerConfigHome, containerDescriptors, portSupplier);
 
     // Setup container specific XML files
-    contextXMLFile = new File(logDir.getAbsolutePath() + "/context.xml");
+    contextXMLFile = new File(cargoLogDir.getAbsolutePath() + "/context.xml");
     serverXMLFile = new File(DEFAULT_CONF_DIR + "server.xml");
 
     // Copy the default container context XML file from the install to the specified path

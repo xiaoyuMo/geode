@@ -218,7 +218,7 @@ public class JAXBServiceTest {
 
     RegionConfig region = new RegionConfig();
     region.setName("testRegion");
-    region.setRefid("REPLICATE");
+    region.setType("REPLICATE");
     cache.getRegions().add(region);
   }
 
@@ -245,6 +245,7 @@ public class JAXBServiceTest {
       this.id = id;
     }
 
+    @Override
     public String getId() {
       return id;
     }
@@ -277,6 +278,7 @@ public class JAXBServiceTest {
       this.id = id;
     }
 
+    @Override
     public String getId() {
       return id;
     }

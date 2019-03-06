@@ -31,7 +31,6 @@ import org.apache.geode.distributed.internal.InternalConfigurationPersistenceSer
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.SingleGfshCommand;
 import org.apache.geode.management.internal.cli.commands.CreateJndiBindingCommand.DATASOURCE_TYPE;
-import org.apache.geode.management.internal.cli.exceptions.EntityExistsException;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.functions.CreateJndiBindingFunction;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -42,7 +41,8 @@ import org.apache.geode.security.ResourcePermission;
 @Experimental
 public class CreateDataSourceCommand extends SingleGfshCommand {
   static final String CREATE_DATA_SOURCE = "create data-source";
-  static final String CREATE_DATA_SOURCE__HELP = EXPERIMENTAL + "Create a JDBC data source.";
+  static final String CREATE_DATA_SOURCE__HELP = EXPERIMENTAL
+      + "Creates a JDBC data source and verifies connectivity to an external JDBC database.";
   static final String POOLED_DATA_SOURCE_FACTORY_CLASS = "pooled-data-source-factory-class";
   private static final String DEFAULT_POOLED_DATA_SOURCE_FACTORY_CLASS =
       "org.apache.geode.connectors.jdbc.JdbcPooledDataSourceFactory";
@@ -57,10 +57,10 @@ public class CreateDataSourceCommand extends SingleGfshCommand {
   static final String NAME__HELP = "Name of the data source to be created.";
   static final String PASSWORD = "password";
   static final String PASSWORD__HELP =
-      "This element specifies the default password used when creating a new connection.";
+      "The password that may be required by the external JDBC database when creating a new connection.";
   static final String USERNAME = "username";
   static final String USERNAME__HELP =
-      "This element specifies the default username used when creating a new connection.";
+      "The username that may be required by the external JDBC database when creating a new connection.";
   static final String POOLED = "pooled";
   static final String POOLED__HELP =
       "By default a pooled data source is created. If this option is false then a non-pooled data source is created.";
@@ -68,16 +68,19 @@ public class CreateDataSourceCommand extends SingleGfshCommand {
       "Skip the create operation when a data source with the same name already exists.  Without specifying this option, this command execution results into an error.";
   static final String POOL_PROPERTIES = "pool-properties";
   static final String POOL_PROPERTIES_HELP =
-      "Used to configure pool properties of a pooled data source . Only valid if --pooled is specified."
+      "Used to configure pool properties of a pooled data source. Only valid if --pooled is specified."
           + "The value is a comma separated list of json strings. Each json string contains a name and value. "
-          + "For example: --pool-properties={'name':'name1','value':'value1'},{'name':'name2','value':'value2'}";
+          + "If the name starts with \"pool.\", then it will be used to configure the pool data source. "
+          + "Otherwise the name value pair will be used to configure the database data source. "
+          + "For example 'pool.name1' configures the pool and 'name2' configures the database in the following: "
+          + "--pool-properties={'name':'pool.name1','value':'value1'},{'name':'name2','value':'value2'}";
 
   @CliCommand(value = CREATE_DATA_SOURCE, help = CREATE_DATA_SOURCE__HELP)
   @CliMetaData(relatedTopic = CliStrings.DEFAULT_TOPIC_GEODE,
       interceptor = "org.apache.geode.connectors.jdbc.internal.cli.CreateDataSourceInterceptor")
   @ResourceOperation(resource = ResourcePermission.Resource.CLUSTER,
       operation = ResourcePermission.Operation.MANAGE)
-  public ResultModel createJDNIBinding(
+  public ResultModel createDataSource(
       @CliOption(key = POOLED_DATA_SOURCE_FACTORY_CLASS,
           help = POOLED_DATA_SOURCE_FACTORY_CLASS__HELP) String pooledDataSourceFactoryClass,
       @CliOption(key = URL, mandatory = true,
@@ -112,19 +115,15 @@ public class CreateDataSourceCommand extends SingleGfshCommand {
       }
     }
 
-    InternalConfigurationPersistenceService service =
-        (InternalConfigurationPersistenceService) getConfigurationPersistenceService();
+    InternalConfigurationPersistenceService service = getConfigurationPersistenceService();
 
     if (service != null) {
       CacheConfig cacheConfig = service.getCacheConfig("cluster");
-      if (cacheConfig != null) {
-        JndiBindingsType.JndiBinding existing =
-            CacheElement.findElement(cacheConfig.getJndiBindings(), name);
-        if (existing != null) {
-          throw new EntityExistsException(
-              CliStrings.format("Data source named \"{0}\" already exists.", name),
-              ifNotExists);
-        }
+      if (cacheConfig != null && CacheElement.exists(cacheConfig.getJndiBindings(), name)) {
+        String message =
+            CliStrings.format("Jndi binding with jndi-name \"{0}\" already exists.", name);
+        return ifNotExists ? ResultModel.createInfo("Skipping: " + message)
+            : ResultModel.createError(message);
       }
     }
 
@@ -139,7 +138,10 @@ public class CreateDataSourceCommand extends SingleGfshCommand {
       return result;
     } else {
       if (service != null) {
-        return ResultModel.createInfo("No members found, data source saved to cluster config.");
+        ResultModel result =
+            ResultModel.createInfo("No members found, data source saved to cluster configuration.");
+        result.setConfigObject(configuration);
+        return result;
       } else {
         return ResultModel.createError("No members found and cluster configuration unavailable.");
       }

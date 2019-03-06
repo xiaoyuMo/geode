@@ -37,7 +37,7 @@ import org.junit.Test;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.ClientRegionShortcut;
-import org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand;
+import org.apache.geode.connectors.util.internal.MappingCommandUtils;
 import org.apache.geode.pdx.PdxInstance;
 import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
 import org.apache.geode.pdx.internal.AutoSerializableManager;
@@ -93,7 +93,7 @@ public abstract class JdbcDistributedTest implements Serializable {
     Connection connection = getConnection();
     Statement statement = connection.createStatement();
     statement.execute("Create Table " + TABLE_NAME
-        + " (id varchar(10) primary key not null, name varchar(10), age int)");
+        + " (id varchar(10) primary key not null, name varchar(10), age int not null)");
   }
 
   private void createTableForAllSupportedFields() throws SQLException {
@@ -226,19 +226,14 @@ public abstract class JdbcDistributedTest implements Serializable {
   public void throwsExceptionWhenNoDataSourceExists() throws Exception {
     createTable();
     createRegionUsingGfsh();
-    createMapping(REGION_NAME, DATA_SOURCE_NAME, true);
-
-    server.invoke(() -> {
-      PdxInstance pdxEmployee1 =
-          ClusterStartupRule.getCache().createPdxInstanceFactory(Employee.class.getName())
-              .writeString("name", "Emp1").writeInt("age", 55).create();
-      Region<Object, Object> region = ClusterStartupRule.getCache().getRegion(REGION_NAME);
-      assertThatThrownBy(() -> region.put("key1", pdxEmployee1))
-          .isExactlyInstanceOf(JdbcConnectorException.class).hasMessage(
-              "JDBC data-source named \"" + DATA_SOURCE_NAME
-                  + "\" not found. Create it with gfsh 'create data-source --pooled --name="
-                  + DATA_SOURCE_NAME + "'.");
-    });
+    IgnoredException.addIgnoredException(JdbcConnectorException.class);
+    final String commandStr = "create jdbc-mapping --region=" + REGION_NAME
+        + " --data-source=" + DATA_SOURCE_NAME
+        + " --pdx-name=" + Employee.class.getName();
+    gfsh.executeAndAssertThat(commandStr).statusIsError()
+        .containsOutput("JDBC data-source named \"" + DATA_SOURCE_NAME
+            + "\" not found. Create it with gfsh 'create data-source --pooled --name="
+            + DATA_SOURCE_NAME + "'.");
   }
 
   @Test
@@ -249,7 +244,7 @@ public abstract class JdbcDistributedTest implements Serializable {
       Statement statement = connection.createStatement();
       statement.execute(
           "Create Table " + TABLE_NAME + " (id varchar(10) primary key not null, "
-              + TestDate.DATE_FIELD_NAME + " date)");
+              + TestDate.DATE_FIELD_NAME + " date not null)");
     });
     createRegionUsingGfsh();
     createJdbcDataSource();
@@ -284,7 +279,7 @@ public abstract class JdbcDistributedTest implements Serializable {
       Statement statement = connection.createStatement();
       statement.execute(
           "Create Table " + TABLE_NAME + " (id varchar(10) primary key not null, "
-              + TestDate.DATE_FIELD_NAME + " time)");
+              + TestDate.DATE_FIELD_NAME + " time not null)");
     });
     createRegionUsingGfsh();
     createJdbcDataSource();
@@ -347,7 +342,7 @@ public abstract class JdbcDistributedTest implements Serializable {
       Connection connection = DriverManager.getConnection(connectionUrl);
       Statement statement = connection.createStatement();
       statement.execute("Create Table " + tableName
-          + " (id varchar(10) primary key not null, " + columnName + " timestamp)");
+          + " (id varchar(10) primary key not null, " + columnName + " timestamp not null)");
     });
   }
 
@@ -446,6 +441,36 @@ public abstract class JdbcDistributedTest implements Serializable {
   }
 
   @Test
+  public void getReadsFromDBWithCompositeKey() throws Exception {
+    createTable();
+    createRegionUsingGfsh();
+    createJdbcDataSource();
+    createMapping(REGION_NAME, DATA_SOURCE_NAME, Employee.class.getName(), true, "id,age");
+    server.invoke(() -> {
+      PdxInstance pdxEmployee1 =
+          ClusterStartupRule.getCache().createPdxInstanceFactory(Employee.class.getName())
+              .writeString("id", "id1").writeString("name", "Emp1").writeInt("age", 55).create();
+      PdxInstance key =
+          ClusterStartupRule.getCache().createPdxInstanceFactory("IdAgeKeyType").neverDeserialize()
+              .writeField("id", (String) pdxEmployee1.getField("id"), String.class)
+              .writeField("age", (Integer) pdxEmployee1.getField("age"), int.class).create();
+      Region<Object, Object> region = ClusterStartupRule.getCache().getRegion(REGION_NAME);
+      region.put(key, pdxEmployee1);
+      region.invalidate(key);
+      JdbcWriter<Object, Object> writer =
+          (JdbcWriter<Object, Object>) region.getAttributes().getCacheWriter();
+      long writeCallsCompletedBeforeGet = writer.getTotalEvents();
+
+      Employee result = (Employee) region.get(key);
+
+      assertThat(result.getId()).isEqualTo("id1");
+      assertThat(result.getName()).isEqualTo("Emp1");
+      assertThat(result.getAge()).isEqualTo(55);
+      assertThat(writer.getTotalEvents()).isEqualTo(writeCallsCompletedBeforeGet);
+    });
+  }
+
+  @Test
   public void getReadsFromDBWithAsyncWriter() throws Exception {
     createTable();
     createRegionUsingGfsh();
@@ -458,7 +483,7 @@ public abstract class JdbcDistributedTest implements Serializable {
       String key = "id1";
       Region<Object, Object> region = ClusterStartupRule.getCache().getRegion(REGION_NAME);
       JdbcAsyncWriter asyncWriter = (JdbcAsyncWriter) ClusterStartupRule.getCache()
-          .getAsyncEventQueue(CreateMappingCommand.createAsyncEventQueueName(REGION_NAME))
+          .getAsyncEventQueue(MappingCommandUtils.createAsyncEventQueueName(REGION_NAME))
           .getAsyncEventListener();
 
       region.put(key, pdxEmployee1);
@@ -640,20 +665,26 @@ public abstract class JdbcDistributedTest implements Serializable {
   }
 
   private void createMapping(String regionName, String connectionName, boolean synchronous) {
-    createMapping(regionName, connectionName, Employee.class.getName(), synchronous);
+    createMapping(regionName, connectionName, Employee.class.getName(), synchronous, null);
   }
 
   private void createMapping(String regionName, String connectionName, String pdxClassName,
       boolean synchronous) {
+    createMapping(regionName, connectionName, pdxClassName, synchronous, null);
+  }
+
+  private void createMapping(String regionName, String connectionName, String pdxClassName,
+      boolean synchronous, String ids) {
     final String commandStr = "create jdbc-mapping --region=" + regionName
         + " --data-source=" + connectionName
         + " --synchronous=" + synchronous
-        + " --pdx-name=" + pdxClassName;
+        + " --pdx-name=" + pdxClassName
+        + ((ids != null) ? (" --id=" + ids) : "");
     gfsh.executeAndAssertThat(commandStr).statusIsSuccess();
     if (!synchronous) {
       final String alterAsyncQueue =
           "alter async-event-queue --id="
-              + CreateMappingCommand.createAsyncEventQueueName(regionName)
+              + MappingCommandUtils.createAsyncEventQueueName(regionName)
               + " --batch-size=1 --batch-time-interval=0";
       gfsh.executeAndAssertThat(alterAsyncQueue).statusIsSuccess();
     }

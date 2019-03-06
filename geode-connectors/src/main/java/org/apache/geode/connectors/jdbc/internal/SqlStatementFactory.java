@@ -14,6 +14,9 @@
  */
 package org.apache.geode.connectors.jdbc.internal;
 
+import java.util.Iterator;
+import java.util.stream.Stream;
+
 class SqlStatementFactory {
   private final String quote;
 
@@ -21,55 +24,72 @@ class SqlStatementFactory {
     this.quote = identifierQuoteString;
   }
 
-  String createSelectQueryString(String tableName, EntryColumnData entryColumnData) {
-    ColumnData keyCV = entryColumnData.getEntryKeyColumnData();
-    return "SELECT * FROM " + quoteIdentifier(tableName) + " WHERE "
-        + quoteIdentifier(keyCV.getColumnName()) + " = ?";
+  String createSelectQueryString(String quotedTablePath, EntryColumnData entryColumnData) {
+    return addKeyColumnsToQuery(entryColumnData,
+        new StringBuilder("SELECT * FROM ").append(quotedTablePath));
   }
 
-  String createDestroySqlString(String tableName, EntryColumnData entryColumnData) {
-    ColumnData keyCV = entryColumnData.getEntryKeyColumnData();
-    return "DELETE FROM " + quoteIdentifier(tableName) + " WHERE "
-        + quoteIdentifier(keyCV.getColumnName()) + " = ?";
+  String createDestroySqlString(String quotedTablePath, EntryColumnData entryColumnData) {
+    return addKeyColumnsToQuery(entryColumnData,
+        new StringBuilder("DELETE FROM ").append(quotedTablePath));
   }
 
-  String createUpdateSqlString(String tableName, EntryColumnData entryColumnData) {
-    StringBuilder query = new StringBuilder("UPDATE " + quoteIdentifier(tableName) + " SET ");
+  private String addKeyColumnsToQuery(EntryColumnData entryColumnData, StringBuilder queryBuilder) {
+    queryBuilder.append(" WHERE ");
+    Iterator<ColumnData> iterator = entryColumnData.getEntryKeyColumnData().iterator();
+    while (iterator.hasNext()) {
+      ColumnData keyColumn = iterator.next();
+      boolean onLastColumn = !iterator.hasNext();
+      queryBuilder.append(quote).append(keyColumn.getColumnName()).append(quote).append(" = ?");
+      if (!onLastColumn) {
+        queryBuilder.append(" AND ");
+      }
+    }
+    return queryBuilder.toString();
+  }
+
+  String createUpdateSqlString(String quotedTablePath, EntryColumnData entryColumnData) {
+    StringBuilder query = new StringBuilder("UPDATE ")
+        .append(quotedTablePath)
+        .append(" SET ");
     int idx = 0;
     for (ColumnData column : entryColumnData.getEntryValueColumnData()) {
       idx++;
       if (idx > 1) {
         query.append(", ");
       }
-      query.append(quoteIdentifier(column.getColumnName()));
+      query.append(quote).append(column.getColumnName()).append(quote);
       query.append(" = ?");
     }
-
-    ColumnData keyColumnData = entryColumnData.getEntryKeyColumnData();
-    query.append(" WHERE ");
-    query.append(quoteIdentifier(keyColumnData.getColumnName()));
-    query.append(" = ?");
-
-    return query.toString();
+    return addKeyColumnsToQuery(entryColumnData, query);
   }
 
-  String createInsertSqlString(String tableName, EntryColumnData entryColumnData) {
-    StringBuilder columnNames =
-        new StringBuilder("INSERT INTO " + quoteIdentifier(tableName) + " (");
+  String createInsertSqlString(String quotedTablePath, EntryColumnData entryColumnData) {
+    StringBuilder columnNames = new StringBuilder("INSERT INTO ")
+        .append(quotedTablePath)
+        .append(" (");
     StringBuilder columnValues = new StringBuilder(" VALUES (");
-
-    for (ColumnData column : entryColumnData.getEntryValueColumnData()) {
-      columnNames.append(quoteIdentifier(column.getColumnName())).append(", ");
-      columnValues.append("?,");
-    }
-
-    ColumnData keyColumnData = entryColumnData.getEntryKeyColumnData();
-    columnNames.append(quoteIdentifier(keyColumnData.getColumnName())).append(")");
-    columnValues.append("?)");
+    addColumnDataToSqlString(entryColumnData, columnNames, columnValues);
+    columnNames.append(')');
+    columnValues.append(')');
     return columnNames.append(columnValues).toString();
   }
 
-  private String quoteIdentifier(String identifier) {
-    return quote + identifier + quote;
+  private void addColumnDataToSqlString(EntryColumnData entryColumnData, StringBuilder columnNames,
+      StringBuilder columnValues) {
+    Stream<ColumnData> values = entryColumnData.getEntryValueColumnData().stream();
+    Stream<ColumnData> keys = entryColumnData.getEntryKeyColumnData().stream();
+    Stream<ColumnData> columnDataStream = Stream.concat(values, keys);
+    final boolean[] firstTime = new boolean[] {true};
+    columnDataStream.forEachOrdered(column -> {
+      if (!firstTime[0]) {
+        columnNames.append(',');
+        columnValues.append(',');
+      } else {
+        firstTime[0] = false;
+      }
+      columnNames.append(quote).append(column.getColumnName()).append(quote);
+      columnValues.append('?');
+    });
   }
 }

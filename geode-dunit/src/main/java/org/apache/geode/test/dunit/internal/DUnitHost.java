@@ -27,29 +27,28 @@ import org.apache.geode.test.version.VersionManager;
 class DUnitHost extends Host {
   private static final long serialVersionUID = -8034165624503666383L;
 
-  /**
-   * VM ID for the VM to use for the debugger.
-   */
-  private static final int DEBUGGING_VM_NUM = -1;
-
   private final transient VM debuggingVM;
+  private final transient ProcessManager processManager;
+  private final transient VMEventNotifier vmEventNotifier;
 
-  private transient ProcessManager processManager;
-
-  public DUnitHost(String hostName, ProcessManager processManager) throws RemoteException {
-    super(hostName);
-    this.debuggingVM = new VM(this, -1, new RemoteDUnitVM());
+  DUnitHost(String hostName, ProcessManager processManager, VMEventNotifier vmEventNotifier)
+      throws RemoteException {
+    super(hostName, vmEventNotifier);
+    this.debuggingVM = new VM(this, -1, new RemoteDUnitVM(), null, null);
     this.processManager = processManager;
+    this.vmEventNotifier = vmEventNotifier;
   }
 
   public void init(Registry registry, int numVMs)
       throws AccessException, RemoteException, NotBoundException, InterruptedException {
     for (int i = 0; i < numVMs; i++) {
       RemoteDUnitVMIF remote = processManager.getStub(i);
-      addVM(i, remote);
+      ProcessHolder processHolder = processManager.getProcessHolder(i);
+      addVM(i, remote, processHolder, processManager);
     }
 
-    addLocator(DUnitLauncher.LOCATOR_VM_NUM, processManager.getStub(DUnitLauncher.LOCATOR_VM_NUM));
+    addLocator(DUnitLauncher.LOCATOR_VM_NUM, processManager.getStub(DUnitLauncher.LOCATOR_VM_NUM),
+        processManager.getProcessHolder(DUnitLauncher.LOCATOR_VM_NUM), processManager);
 
     addHost(this);
   }
@@ -65,7 +64,7 @@ class DUnitHost extends Host {
    */
   @Override
   public VM getVM(int n) {
-    if (n < getVMCount() && n != DEBUGGING_VM_NUM) {
+    if (n < getVMCount() && n != DUnitLauncher.DEBUGGING_VM_NUM) {
       VM current = super.getVM(n);
       return getVM(current.getVersion(), n);
     } else {
@@ -75,7 +74,7 @@ class DUnitHost extends Host {
 
   @Override
   public VM getVM(String version, int n) {
-    if (n == DEBUGGING_VM_NUM) {
+    if (n == DUnitLauncher.DEBUGGING_VM_NUM) {
       // for ease of debugging, pass -1 to get the local VM
       return debuggingVM;
     }
@@ -101,13 +100,13 @@ class DUnitHost extends Host {
         processManager.waitForVMs(DUnitLauncher.STARTUP_TIMEOUT);
 
         for (int i = oldVMCount; i < n; i++) {
-          addVM(i, processManager.getStub(i));
+          addVM(i, processManager.getStub(i), processManager.getProcessHolder(i), processManager);
         }
 
         // now create the one we really want
         processManager.launchVM(version, n, false);
         processManager.waitForVMs(DUnitLauncher.STARTUP_TIMEOUT);
-        addVM(n, processManager.getStub(n));
+        addVM(n, processManager.getStub(n), processManager.getProcessHolder(n), processManager);
 
       } catch (IOException | InterruptedException | NotBoundException e) {
         throw new RuntimeException("Could not dynamically launch vm + " + n, e);

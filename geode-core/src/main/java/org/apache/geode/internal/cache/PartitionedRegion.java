@@ -53,6 +53,9 @@ import org.apache.geode.CancelException;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.CacheException;
@@ -251,10 +254,12 @@ import org.apache.geode.internal.util.concurrent.StoppableCountDownLatch;
 public class PartitionedRegion extends LocalRegion
     implements CacheDistributionAdvisee, QueryExecutor {
 
+  @Immutable
   public static final Random RANDOM =
       new Random(Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "PartitionedRegionRandomSeed",
           NanoTimer.getTime()));
 
+  @MakeNotStatic
   private static final AtomicInteger SERIAL_NUMBER_GENERATOR = new AtomicInteger();
 
   /**
@@ -285,12 +290,13 @@ public class PartitionedRegion extends LocalRegion
   /**
    * A debug flag used for testing calculation of starting bucket id
    */
+  @MutableForTesting
   public static boolean BEFORE_CALCULATE_STARTING_BUCKET_FLAG = false;
 
   /**
    * Thread specific random number
    */
-  private static ThreadLocal threadRandom = new ThreadLocal() {
+  private static final ThreadLocal threadRandom = new ThreadLocal() {
     @Override
     protected Object initialValue() {
       int i = RANDOM.nextInt();
@@ -383,6 +389,7 @@ public class PartitionedRegion extends LocalRegion
   /**
    * Maps each PR to a prId. This prId will uniquely identify the PR.
    */
+  @MakeNotStatic
   private static final PRIdMap prIdToPR = new PRIdMap();
 
   /**
@@ -569,12 +576,14 @@ public class PartitionedRegion extends LocalRegion
     }
   }
 
-  private static DisconnectListener dsPRIdCleanUpListener = new DisconnectListener() {
+  @Immutable
+  private static final DisconnectListener dsPRIdCleanUpListener = new DisconnectListener() {
     @Override
     public String toString() {
       return "Shutdown listener for PartitionedRegion";
     }
 
+    @Override
     public void onDisconnect(InternalDistributedSystem sys) {
       clearPRIdMap();
     }
@@ -1198,6 +1207,7 @@ public class PartitionedRegion extends LocalRegion
     }
   }
 
+  @Override
   public void addGatewaySenderId(String gatewaySenderId) {
     super.addGatewaySenderId(gatewaySenderId);
     new UpdateAttributesProcessor(this).distribute();
@@ -1231,15 +1241,18 @@ public class PartitionedRegion extends LocalRegion
     updatePRConfig(prConfig, false);
   }
 
+  @Override
   public void removeGatewaySenderId(String gatewaySenderId) {
     super.removeGatewaySenderId(gatewaySenderId);
     new UpdateAttributesProcessor(this).distribute();
   }
 
+  @Override
   public void addAsyncEventQueueId(String asyncEventQueueId) {
     addAsyncEventQueueId(asyncEventQueueId, false);
   }
 
+  @Override
   public void addAsyncEventQueueId(String asyncEventQueueId, boolean isInternal) {
     super.addAsyncEventQueueId(asyncEventQueueId, isInternal);
     new UpdateAttributesProcessor(this).distribute();
@@ -1253,11 +1266,13 @@ public class PartitionedRegion extends LocalRegion
     }
   }
 
+  @Override
   public void removeAsyncEventQueueId(String asyncEventQueueId) {
     super.removeAsyncEventQueueId(asyncEventQueueId);
     new UpdateAttributesProcessor(this).distribute();
   }
 
+  @Override
   public void checkSameSenderIdsAvailableOnAllNodes() {
     List senderIds =
         this.getCacheDistributionAdvisor().adviseSameGatewaySenderIds(getGatewaySenderIds());
@@ -1862,6 +1877,7 @@ public class PartitionedRegion extends LocalRegion
    *
    * @since GemFire 5.1
    */
+  @Override
   public Object executeQuery(DefaultQuery query, Object[] parameters, Set buckets)
       throws FunctionDomainException, TypeMismatchException, NameResolutionException,
       QueryInvocationTargetException {
@@ -4891,10 +4907,12 @@ public class PartitionedRegion extends LocalRegion
     return prid;
   }
 
+  @Override
   public DistributionAdvisor getDistributionAdvisor() {
     return this.distAdvisor;
   }
 
+  @Override
   public CacheDistributionAdvisor getCacheDistributionAdvisor() {
     return this.distAdvisor;
   }
@@ -4904,10 +4922,12 @@ public class PartitionedRegion extends LocalRegion
   }
 
   /** Returns the distribution profile; lazily creates one if needed */
+  @Override
   public Profile getProfile() {
     return this.distAdvisor.createProfile();
   }
 
+  @Override
   public void fillInProfile(Profile p) {
     CacheProfile profile = (CacheProfile) p;
     // set fields on CacheProfile...
@@ -4933,7 +4953,7 @@ public class PartitionedRegion extends LocalRegion
     profile.asyncEventQueueIds = getVisibleAsyncEventQueueIds();
 
     if (getDataPolicy().withPersistence()) {
-      profile.persistentID = getDiskStore().generatePersistentID(null);
+      profile.persistentID = getDiskStore().generatePersistentID();
     }
 
     fillInProfile((PartitionProfile) profile);
@@ -5973,6 +5993,7 @@ public class PartitionedRegion extends LocalRegion
         return getRegionAdvisor().getBucketSet().iterator();
       }
 
+      @Override
       public boolean hasNext() {
         PartitionedRegion.this.checkReadiness();
         if (this.currentBucketI.hasNext()) {
@@ -5986,6 +6007,7 @@ public class PartitionedRegion extends LocalRegion
         }
       }
 
+      @Override
       public Object next() {
         if (myTX != null) {
           checkTX();
@@ -6026,6 +6048,7 @@ public class PartitionedRegion extends LocalRegion
         }
       }
 
+      @Override
       public void remove() {
         if (this.currentKey == null) {
           throw new IllegalStateException();
@@ -6041,10 +6064,12 @@ public class PartitionedRegion extends LocalRegion
         }
       }
 
+      @Override
       public PartitionedRegion getPartitionedRegion() {
         return PartitionedRegion.this;
       }
 
+      @Override
       public int getBucketId() {
         return this.currentBucketId;
       }
@@ -9279,6 +9304,7 @@ public class PartitionedRegion extends LocalRegion
         }
         if (!bucketList.isEmpty()) {
           Collections.sort(bucketList, new Comparator<BucketRegion>() {
+            @Override
             public int compare(BucketRegion buk1, BucketRegion buk2) {
               long buk1NumEntries = buk1.getSizeForEviction();
               long buk2NumEntries = buk2.getSizeForEviction();

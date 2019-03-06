@@ -30,6 +30,7 @@ import java.util.Set;
 
 import it.unimi.dsi.fastutil.HashCommon;
 
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.query.TypeMismatchException;
 import org.apache.geode.cache.query.internal.parse.OQLLexerTokenTypes;
 import org.apache.geode.cache.query.internal.types.TypeUtils;
@@ -107,6 +108,7 @@ public class HashIndexSet implements Set {
    */
   protected static final Object REMOVED = new Object();
 
+  @MutableForTesting
   static boolean TEST_ALWAYS_REHASH = false;
 
   /**
@@ -147,6 +149,7 @@ public class HashIndexSet implements Set {
    * @param obj an <code>Object</code> value
    * @return a <code>boolean</code> value
    */
+  @Override
   public boolean contains(Object obj) {
     return index(obj) >= 0;
   }
@@ -251,6 +254,7 @@ public class HashIndexSet implements Set {
   /**
    * Unsupported, we do not use HashIndexSet as a general all purpose set
    */
+  @Override
   public synchronized boolean add(Object obj) {
     throw new UnsupportedOperationException(
         "add(Object) not supported, try add(Object key, Object obj) instead");
@@ -407,6 +411,7 @@ public class HashIndexSet implements Set {
    *
    * @return an <code>Object[]</code> value
    */
+  @Override
   public Object[] toArray() {
     throw new UnsupportedOperationException("toArray not yet supported");
   }
@@ -417,6 +422,7 @@ public class HashIndexSet implements Set {
    * @param a an <code>Object[]</code> value
    * @return an <code>Object[]</code> value
    */
+  @Override
   public Object[] toArray(Object[] a) {
     throw new UnsupportedOperationException("toArray(Object[] a) not yet supported");
   }
@@ -424,6 +430,7 @@ public class HashIndexSet implements Set {
   /**
    * Empties the set.
    */
+  @Override
   public void clear() {
     HashIndexSetProperties metaData = hashIndexSetProperties;
     metaData.size = 0;
@@ -441,6 +448,7 @@ public class HashIndexSet implements Set {
   }
 
 
+  @Override
   public boolean remove(Object obj) {
     return remove(_imqEvaluator.evaluateKey(obj), obj);
   }
@@ -496,6 +504,7 @@ public class HashIndexSet implements Set {
    *
    * @return an <code>Iterator</code> value
    */
+  @Override
   public Iterator iterator() {
     return getAll();
   }
@@ -506,6 +515,7 @@ public class HashIndexSet implements Set {
    * @param collection a <code>Collection</code> value
    * @return true if all elements are present.
    */
+  @Override
   public boolean containsAll(Collection collection) {
     for (Iterator i = collection.iterator(); i.hasNext();) {
       if (!contains(i.next())) {
@@ -518,6 +528,7 @@ public class HashIndexSet implements Set {
   /**
    * Unsupported because type mismatch exception cannot be thrown from Set interface
    */
+  @Override
   public boolean addAll(Collection collection) {
     throw new UnsupportedOperationException("Add all not implemented");
   }
@@ -528,6 +539,7 @@ public class HashIndexSet implements Set {
    * @param collection a <code>Collection</code> value
    * @return true if the set was modified by the remove all operation.
    */
+  @Override
   public boolean removeAll(Collection collection) {
     boolean changed = false;
     int size = collection.size();
@@ -547,6 +559,7 @@ public class HashIndexSet implements Set {
    * @param collection a <code>Collection</code> value
    * @return true if the set was modified by the retain all operation
    */
+  @Override
   public boolean retainAll(Collection collection) {
     boolean changed = false;
     int size = size();
@@ -576,6 +589,7 @@ public class HashIndexSet implements Set {
    *
    * @return an <code>int</code> value
    */
+  @Override
   public int size() {
     return hashIndexSetProperties.size;
   }

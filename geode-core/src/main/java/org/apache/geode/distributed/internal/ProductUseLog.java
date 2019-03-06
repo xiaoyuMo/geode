@@ -14,6 +14,8 @@
  */
 package org.apache.geode.distributed.internal;
 
+import static org.apache.geode.internal.logging.LogWriterLevel.INFO;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.geode.GemFireIOException;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.MembershipManager;
 import org.apache.geode.internal.logging.InternalLogWriter;
@@ -38,6 +41,7 @@ import org.apache.geode.internal.logging.PureLogWriter;
  * @since GemFire 2013
  */
 public class ProductUseLog implements MembershipListener {
+  @MutableForTesting
   protected static long MAX_PRODUCT_USE_FILE_SIZE = Long.getLong("max_view_log_size", 5000000);
   private final int logLevel;
   private final File productUseLogFile;
@@ -54,7 +58,7 @@ public class ProductUseLog implements MembershipListener {
   public ProductUseLog(File productUseLogFile) {
     // GEODE-4180, use absolute paths
     this.productUseLogFile = productUseLogFile.getAbsoluteFile();
-    this.logLevel = InternalLogWriter.INFO_LEVEL;
+    this.logLevel = INFO.intLevel();
     createLogWriter();
   }
 

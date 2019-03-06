@@ -38,6 +38,7 @@ import static org.apache.geode.distributed.ConfigurationProperties.CONSERVE_SOCK
 import static org.apache.geode.distributed.ConfigurationProperties.DELTA_PROPAGATION;
 import static org.apache.geode.distributed.ConfigurationProperties.DEPLOY_WORKING_DIR;
 import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_AUTO_RECONNECT;
+import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_JMX;
 import static org.apache.geode.distributed.ConfigurationProperties.DISABLE_TCP;
 import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_SYSTEM_ID;
 import static org.apache.geode.distributed.ConfigurationProperties.DISTRIBUTED_TRANSACTIONS;
@@ -200,6 +201,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.InvalidValueException;
 import org.apache.geode.UnmodifiableException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.internal.AbstractConfig;
 import org.apache.geode.internal.ConfigSource;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
@@ -894,6 +896,7 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
     return ca.type();
   }
 
+  @Immutable
   static final Map dcAttDescriptions;
 
   static {
@@ -925,6 +928,10 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
 
     m.put(DISABLE_TCP, String.format(
         "Determines whether TCP/IP communications will be disabled, forcing use of datagrams between members of the distributed system. Defaults to %s",
+        Boolean.FALSE));
+
+    m.put(DISABLE_JMX, String.format(
+        "Determines whether JMX will be disabled which prevents Geode from creating MBeans. Defaults to %s",
         Boolean.FALSE));
 
     m.put(ENABLE_TIME_STATISTICS,
@@ -1481,11 +1488,6 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
   }
 
   @Override
-  public String[] getSpecificAttributeNames() {
-    return dcValidAttributeNames;
-  }
-
-  @Override
   protected Map getAttDescMap() {
     return dcAttDescriptions;
   }
@@ -1510,14 +1512,18 @@ public abstract class AbstractDistributionConfig extends AbstractConfig
     }
   }
 
-  static final Map<String, Method> checkers = new HashMap<>();
+  @Immutable
+  static final Map<String, Method> checkers;
 
   static {
+    Map<String, Method> checkersMap = new HashMap<>();
     for (Method method : AbstractDistributionConfig.class.getDeclaredMethods()) {
       if (method.isAnnotationPresent(ConfigAttributeChecker.class)) {
         ConfigAttributeChecker checker = method.getAnnotation(ConfigAttributeChecker.class);
-        checkers.put(checker.name(), method);
+        checkersMap.put(checker.name(), method);
       }
     }
+
+    checkers = Collections.unmodifiableMap(checkersMap);
   }
 }

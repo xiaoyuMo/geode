@@ -30,6 +30,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -74,6 +75,11 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
     logWriter = PartitionedRegionTestHelper.getLogger();
   }
 
+  @After
+  public void tearDown() {
+    PartitionedRegionTestHelper.closeCache();
+  }
+
   /**
    * This isa test for PartitionedRegion put() operation.
    * <p>
@@ -102,7 +108,8 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
     logger.info("<ExpectedException action=add>" + expectedExceptions + "</ExpectedException>");
     try {
       pr.put(new Integer(1), val);
-      fail("testPut()- Expected PartitionedRegionException not thrown for localMaxMemory = 0");
+      fail(
+          "testPut()- The expected PartitionedRegionException was not thrown for localMaxMemory = 0");
     } catch (PartitionedRegionStorageException ex) {
       if (logWriter.fineEnabled()) {
         logWriter.fine(
@@ -200,7 +207,7 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
 
     for (int num = 0; num < 3; num++) {
       pr.put(new Integer(num), val);
-      final int initialDestroyCount = getDestroyCount(pr);
+      final long initialDestroyCount = getDestroyCount(pr);
       pr.destroy(new Integer(num));
       assertEquals(initialDestroyCount + 1, getDestroyCount(pr));
     }
@@ -228,11 +235,11 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
     }
   }
 
-  private int getDestroyCount(PartitionedRegion pr) {
+  private long getDestroyCount(PartitionedRegion pr) {
     return ((GemFireCacheImpl) pr.getCache()).getCachePerfStats().getDestroys();
   }
 
-  private int getCreateCount(PartitionedRegion pr) {
+  private long getCreateCount(PartitionedRegion pr) {
     return ((GemFireCacheImpl) pr.getCache()).getCachePerfStats().getCreates();
   }
 
@@ -1075,7 +1082,7 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
     final String expectedExceptions = EntryExistsException.class.getName();
     for (int num = 0; num < 3; num++) {
       key++;
-      final int initialCreates = getCreateCount(pr);
+      final long initialCreates = getCreateCount(pr);
       pr.create(new Integer(key), val + num);
       assertEquals(initialCreates + 1, getCreateCount(pr));
       final Object getObj1 = pr.get(new Integer(key));
@@ -1159,6 +1166,7 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
       return validationSuccessful;
     }
 
+    @Override
     public void beforeCreate(EntryEvent event) throws CacheWriterException {
       assertTrue(event.getOperation().isCreate());
       assertTrue(!event.getRegion().containsKey(this.key));
@@ -1167,6 +1175,7 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
       this.validationSuccessful = true;
     }
 
+    @Override
     public void beforeDestroy(EntryEvent event) throws CacheWriterException {
       assertTrue(event.getOperation().isDestroy());
       assertTrue(event.getRegion().containsKey(this.key));
@@ -1174,10 +1183,13 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
       this.validationSuccessful = true;
     }
 
+    @Override
     public void beforeRegionClear(RegionEvent event) throws CacheWriterException {}
 
+    @Override
     public void beforeRegionDestroy(RegionEvent event) throws CacheWriterException {}
 
+    @Override
     public void beforeUpdate(EntryEvent event) throws CacheWriterException {
       assertTrue(event.getOperation().isUpdate());
       assertTrue(event.getRegion().containsKey(this.key));
@@ -1187,6 +1199,7 @@ public class PartitionedRegionSingleNodeOperationsJUnitTest {
       this.validationSuccessful = true;
     }
 
+    @Override
     public void close() {}
 
   }

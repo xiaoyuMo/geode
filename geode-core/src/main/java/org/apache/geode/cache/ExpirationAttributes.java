@@ -21,7 +21,7 @@ import java.io.IOException;
 
 import org.apache.geode.DataSerializable;
 import org.apache.geode.DataSerializer;
-import org.apache.geode.cache.configuration.ExpirationAttributesType;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.internal.InternalDataSerializer;
 
 /**
@@ -40,6 +40,7 @@ import org.apache.geode.internal.InternalDataSerializer;
 public class ExpirationAttributes implements DataSerializable {
   private static final long serialVersionUID = 5956885652945706394L;
   /** convenience constant for a default instance */
+  @Immutable
   public static final ExpirationAttributes DEFAULT = new ExpirationAttributes();
 
   /** The number of seconds since this value or region was created before it expires. */
@@ -91,7 +92,6 @@ public class ExpirationAttributes implements DataSerializable {
       this.action = expirationAction;
     }
   }
-
 
   /**
    * Returns the number of seconds before a region or value expires.
@@ -148,23 +148,17 @@ public class ExpirationAttributes implements DataSerializable {
   }
 
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.timeout = in.readInt();
     this.action = DataSerializer.readObject(in);
 
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     out.writeInt(this.timeout);
     DataSerializer.writeObject(this.action, out);
-  }
-
-  public ExpirationAttributesType toConfigType() {
-    ExpirationAttributesType t = new ExpirationAttributesType();
-    t.setTimeout(Integer.toString(this.timeout));
-    t.setAction(this.action.toXmlString());
-
-    return t;
   }
 
   public boolean isDefault() {

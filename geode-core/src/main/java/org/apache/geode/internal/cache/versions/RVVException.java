@@ -18,6 +18,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.VersionedDataSerializable;
@@ -55,6 +56,7 @@ abstract class RVVException
     implements Comparable<RVVException>, Cloneable, VersionedDataSerializable {
   private static final long serialVersionUID = 2021977010704105114L;
 
+  @MutableForTesting
   protected static boolean UseTreeSetsForTesting = false;
 
   /**
@@ -128,6 +130,7 @@ abstract class RVVException
   /** internal method to add a new version to the received-versions collection */
   protected abstract void addReceived(long version);
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     InternalDataSerializer.writeUnsignedVL(this.previousVersion, out);
     writeReceived(out);
@@ -145,6 +148,7 @@ abstract class RVVException
     return this.previousVersion + 1 >= this.nextVersion;
   }
 
+  @Override
   public abstract RVVException clone();
 
   /*
@@ -152,6 +156,7 @@ abstract class RVVException
    *
    * @see java.lang.Comparable#compareTo(java.lang.Object)
    */
+  @Override
   public int compareTo(RVVException o) {
     long thisVal = this.previousVersion;
     long anotherVal = o.previousVersion;

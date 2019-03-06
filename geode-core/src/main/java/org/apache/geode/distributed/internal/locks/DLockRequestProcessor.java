@@ -26,6 +26,7 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.distributed.LockServiceDestroyedException;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
@@ -574,6 +575,7 @@ public class DLockRequestProcessor extends ReplyProcessor21 {
     private void executeBasicProcess(final DistributionManager dm) {
       final DLockRequestMessage msg = this;
       dm.getWaitingThreadPool().execute(new Runnable() {
+        @Override
         public void run() {
           if (logger.isTraceEnabled(LogMarker.DLS_VERBOSE)) {
             logger.trace(LogMarker.DLS_VERBOSE, "calling waitForGrantor {}", msg);
@@ -913,6 +915,7 @@ public class DLockRequestProcessor extends ReplyProcessor21 {
       return this.responded;
     }
 
+    @Override
     public int getDSFID() {
       return DLOCK_REQUEST_MESSAGE;
     }
@@ -1197,8 +1200,10 @@ public class DLockRequestProcessor extends ReplyProcessor21 {
     }
   }
 
+  @MutableForTesting
   private static boolean debugReleaseOrphanedGrant = false;
   private static final Object waitToProcessDLockResponseLock = new Object();
+  @MutableForTesting
   private static volatile boolean waitToProcessDLockResponse = false;
 
   public static boolean debugReleaseOrphanedGrant() {

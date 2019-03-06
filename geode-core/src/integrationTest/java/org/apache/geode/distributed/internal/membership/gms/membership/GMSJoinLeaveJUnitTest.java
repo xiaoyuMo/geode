@@ -15,6 +15,8 @@
 package org.apache.geode.distributed.internal.membership.gms.membership;
 
 import static org.apache.geode.test.awaitility.GeodeAwaitility.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -31,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,12 +52,14 @@ import org.junit.experimental.categories.Category;
 import org.mockito.internal.verification.Times;
 import org.mockito.verification.Timeout;
 
+import org.apache.geode.SystemConnectException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.distributed.internal.membership.NetView;
 import org.apache.geode.distributed.internal.membership.gms.GMSMember;
+import org.apache.geode.distributed.internal.membership.gms.GMSUtil;
 import org.apache.geode.distributed.internal.membership.gms.ServiceConfig;
 import org.apache.geode.distributed.internal.membership.gms.Services;
 import org.apache.geode.distributed.internal.membership.gms.Services.Stopper;
@@ -160,6 +165,7 @@ public class GMSJoinLeaveJUnitTest {
     gmsJoinLeave.init(services);
     gmsJoinLeave.start();
     gmsJoinLeave.started();
+    gmsJoinLeave.setLocalAddress(gmsJoinLeaveMemberId);
   }
 
   @After
@@ -186,6 +192,29 @@ public class GMSJoinLeaveJUnitTest {
       return isCoordinator;
     }
 
+  }
+
+  @Test
+  public void testFindCoordinatorPausesWhenLocatorWaitTimeIsSet() throws Exception {
+    initMocks(false);
+    when(mockConfig.getLocatorWaitTime()).thenReturn(15000);
+
+    TcpClientWrapper tcpClientWrapper = mock(TcpClientWrapper.class);
+    gmsJoinLeave.setTcpClientWrapper(tcpClientWrapper);
+
+    when(tcpClientWrapper.sendCoordinatorFindRequest(isA(InetSocketAddress.class),
+        isA(FindCoordinatorRequest.class), isA(Integer.class)))
+            .thenThrow(new IOException("Connection refused"));
+
+    // interrupt this thread so that findCoordinator() won't keep looping
+    // and will throw an exception when going to pause
+    Thread.currentThread().interrupt();
+    assertThatThrownBy(() -> gmsJoinLeave.findCoordinator())
+        .isInstanceOf(SystemConnectException.class)
+        .hasMessageContaining("Interrupted while trying to contact locators");
+    assertThat(Thread.currentThread().interrupted()).isTrue();
+    verify(tcpClientWrapper, times(1)).sendCoordinatorFindRequest(any(InetSocketAddress.class),
+        any(FindCoordinatorRequest.class), any(Integer.class));
   }
 
   @Test
@@ -305,13 +334,6 @@ public class GMSJoinLeaveJUnitTest {
     gmsJoinLeave.processMessage(jrm);
     // this should log..
     Assert.assertEquals(jrm, joinResponse[0]);
-
-    gmsJoinLeave.setJoinResponseMessage(null);
-
-    jrm = new JoinResponseMessage(mockMembers[0], new NetView(), 0);
-    gmsJoinLeave.processMessage(jrm);
-    // this should log..
-    Assert.assertEquals(jrm, joinResponse[0]);
   }
 
   /**
@@ -403,6 +425,13 @@ public class GMSJoinLeaveJUnitTest {
     await()
         .until(() -> gmsJoinLeave.getView().getViewId() > newView.getViewId());
     assertFalse(gmsJoinLeave.getView().getCrashedMembers().contains(mockMembers[1]));
+  }
+
+  @Test
+  public void multipleLocatorsWithSameAddressAreCanonicalized() throws Exception {
+    List<HostAddress> locators = GMSUtil.parseLocators(
+        "localhost[1234],localhost[1234],localhost[1234]", (InetAddress) null);
+    assertThat(locators.size()).isEqualTo(1);
   }
 
 
@@ -587,7 +616,7 @@ public class GMSJoinLeaveJUnitTest {
     previousMemberId.setVmViewId(0);
     NetView view = new NetView(mockMembers[0], 1,
         createMemberList(mockMembers[0], previousMemberId, mockMembers[1]));
-    InstallViewMessage viewMessage = new InstallViewMessage(view, 0, true);
+    InstallViewMessage viewMessage = new InstallViewMessage(view, 0, false);
     viewMessage.setSender(mockMembers[0]);
     gmsJoinLeave.processMessage(viewMessage);
     assertEquals(0, gmsJoinLeaveMemberId.getVmViewId());
@@ -597,29 +626,6 @@ public class GMSJoinLeaveJUnitTest {
     msg.setSender(mockMembers[0]);
     gmsJoinLeave.processMessage(msg);
     verify(manager).forceDisconnect("removing for test");
-  }
-
-  @Test
-  public void testViewWithOldIDNotAcceptedAsJoinResponse() throws Exception {
-    initMocks();
-    when(messenger.isOldMembershipIdentifier(any(DistributedMember.class)))
-        .thenReturn(Boolean.TRUE);
-    List<InternalDistributedMember> mbrs = new LinkedList<>();
-    Set<InternalDistributedMember> shutdowns = new HashSet<>();
-    Set<InternalDistributedMember> crashes = new HashSet<>();
-    mbrs.add(mockMembers[0]);
-    mbrs.add(mockMembers[1]);
-    mbrs.add(mockMembers[2]);
-    InternalDistributedMember oldId = new InternalDistributedMember(
-        gmsJoinLeaveMemberId.getInetAddress(), gmsJoinLeaveMemberId.getPort());
-    oldId.setVmViewId(0);
-    mbrs.add(oldId);
-
-    // prepare the view
-    NetView netView = new NetView(mockMembers[0], 1, mbrs, shutdowns, crashes);
-    gmsJoinLeave.processMessage(new InstallViewMessage(netView, null, true));
-    assertEquals(-1, gmsJoinLeaveMemberId.getVmViewId());
-    verify(messenger).isOldMembershipIdentifier(isA(DistributedMember.class));
   }
 
   @Test
@@ -694,6 +700,26 @@ public class GMSJoinLeaveJUnitTest {
     InternalDistributedMember creator = view.getCreator();
     RemoveMemberMessage msg = new RemoveMemberMessage(creator, creator, reason);
     msg.setSender(creator);
+    gmsJoinLeave.processMessage(msg);
+    assertTrue("Expected becomeCoordinator to be invoked", gmsJoinLeave.isCoordinator());
+  }
+
+  /**
+   * Given a view with [A, B, C, D, E] where C is coordinator, A failed availability checks and
+   * C shuts down we should see B become the coordinator.
+   */
+  @Test
+  public void testBecomeCoordinatorThroughShutdownWhenOlderMemberCrashed() throws Exception {
+    initMocks();
+    InternalDistributedMember A = mockMembers[0],
+        B = gmsJoinLeaveMemberId,
+        C = mockMembers[1],
+        D = mockMembers[2],
+        E = mockMembers[3];
+    prepareAndInstallView(C, createMemberList(A, B, C, D, E));
+    when(healthMonitor.getMembersFailingAvailabilityCheck()).thenReturn(Collections.singleton(A));
+    LeaveRequestMessage msg = new LeaveRequestMessage(B, C, "leaving for test");
+    msg.setSender(C);
     gmsJoinLeave.processMessage(msg);
     assertTrue("Expected becomeCoordinator to be invoked", gmsJoinLeave.isCoordinator());
   }

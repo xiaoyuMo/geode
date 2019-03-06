@@ -26,12 +26,14 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.LowMemoryException;
 import org.apache.geode.cache.Operation;
 import org.apache.geode.cache.RegionDestroyedException;
+import org.apache.geode.cache.TransactionException;
 import org.apache.geode.cache.query.QueryException;
 import org.apache.geode.cache.query.RegionNotFoundException;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
@@ -73,6 +75,7 @@ public abstract class PartitionMessage extends DistributionMessage
   private static final Logger logger = LogService.getLogger();
 
   /** default exception to ensure a false-positive response is never returned */
+  @Immutable
   static final ForceReattemptException UNHANDLED_EXCEPTION =
       (ForceReattemptException) new ForceReattemptException(
           "Unknown exception")
@@ -177,10 +180,12 @@ public abstract class PartitionMessage extends DistributionMessage
     this.isTransactionDistributed = other.isTransactionDistributed;
   }
 
+  @Override
   public InternalDistributedMember getTXOriginatorClient() {
     return txMemberId;
   }
 
+  @Override
   public InternalDistributedMember getMemberToMasqueradeAs() {
     if (txMemberId == null) {
       return getSender();
@@ -331,6 +336,13 @@ public abstract class PartitionMessage extends DistributionMessage
           } else if (tx.isInProgress()) {
             sendReply = operateOnPartitionedRegion(dm, pr, startTime);
             tx.updateProxyServer(this.getSender());
+          } else {
+            /*
+             * This can occur when processing an in-flight message after the transaction has
+             * been failed over and committed.
+             */
+            throw new TransactionException("transactional operation elided because transaction {"
+                + tx.getTxId() + "} is closed");
           }
         } finally {
           txMgr.unmasquerade(tx);
@@ -338,8 +350,8 @@ public abstract class PartitionMessage extends DistributionMessage
       }
       thr = null;
 
-    } catch (ForceReattemptException fre) {
-      thr = fre;
+    } catch (ForceReattemptException | TransactionException e) {
+      thr = e;
     } catch (DataLocationException fre) {
       thr = new ForceReattemptException(fre.getMessage(), fre);
     } catch (DistributedSystemDisconnectedException se) {
@@ -673,10 +685,12 @@ public abstract class PartitionMessage extends DistributionMessage
   /**
    * @return the txUniqId
    */
+  @Override
   public int getTXUniqId() {
     return txUniqId;
   }
 
+  @Override
   public boolean canStartRemoteTransaction() {
     return false;
   }

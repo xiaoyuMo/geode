@@ -17,6 +17,7 @@ package org.apache.geode.i18n;
 import java.text.MessageFormat;
 import java.util.Locale;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.internal.i18n.AbstractStringIdResourceBundle;
 
 /**
@@ -41,44 +42,33 @@ public class StringId {
   /** the English translation of text */
   private final String text;
   /** ResourceBundle to use for translation, shared amongst all instances */
-  private static volatile AbstractStringIdResourceBundle rb = null;
+  @Immutable
+  private static final AbstractStringIdResourceBundle rb;
   /**
    * The locale of the current ResourceBundle, if this changes we must update the ResourceBundle.
    */
-  private static volatile Locale currentLocale = null;
+  @Immutable
+  private static final Locale currentLocale;
 
+  @Immutable
   private static boolean includeMsgIDs;
 
   /**
    * A StringId to allow users to log a literal String using the
    * {@link org.apache.geode.LogWriter}
    */
+  @Immutable
   public static final StringId LITERAL = new StringId(1, "{0}");
 
   static {
-    setLocale(Locale.getDefault());
-  }
+    Locale locale = Locale.getDefault();
 
-  /*
-   * Update {@link #currentlocale} and {@link #rb} This method should be used sparingly as there is
-   * a small window for a race condition.
-   *
-   * @params locale switch to use this locale. if null then {@link Locale#getDefault()} is used.
-   */
-  public static void setLocale(Locale l) {
-    Locale locale = l;
-    if (locale == null) {
-      locale = Locale.getDefault();
-    }
-
-    if (locale != currentLocale) {
-      AbstractStringIdResourceBundle tempResourceBundle = StringId.getBundle(locale);
-      currentLocale = locale;
-      rb = tempResourceBundle;
-      // do we want message ids included in output?
-      // Only if we are using a resource bundle that has localized strings.
-      includeMsgIDs = !rb.usingRawMode();
-    }
+    AbstractStringIdResourceBundle tempResourceBundle = StringId.getBundle(locale);
+    currentLocale = locale;
+    rb = tempResourceBundle;
+    // do we want message ids included in output?
+    // Only if we are using a resource bundle that has localized strings.
+    includeMsgIDs = !rb.usingRawMode();
   }
 
   /*

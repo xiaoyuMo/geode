@@ -68,6 +68,8 @@ import org.apache.geode.LogWriter;
 import org.apache.geode.Statistics;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.admin.internal.SystemMemberCacheEventProcessor;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
@@ -157,12 +159,12 @@ import org.apache.geode.internal.ClassLoadUtil;
 import org.apache.geode.internal.HeapDataOutputStream;
 import org.apache.geode.internal.NanoTimer;
 import org.apache.geode.internal.Version;
-import org.apache.geode.internal.cache.AbstractRegionMap.ARMLockTestHook;
 import org.apache.geode.internal.cache.CacheDistributionAdvisor.CacheProfile;
 import org.apache.geode.internal.cache.DiskInitFile.DiskRegionFlag;
 import org.apache.geode.internal.cache.FilterRoutingInfo.FilterInfo;
 import org.apache.geode.internal.cache.InitialImageOperation.GIIStatus;
 import org.apache.geode.internal.cache.PutAllPartialResultException.PutAllPartialResult;
+import org.apache.geode.internal.cache.RegionMap.ARMLockTestHook;
 import org.apache.geode.internal.cache.control.InternalResourceManager;
 import org.apache.geode.internal.cache.control.InternalResourceManager.ResourceType;
 import org.apache.geode.internal.cache.control.MemoryEvent;
@@ -426,6 +428,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    * just after clear on map is done. Its visibility is default so that only tests present in
    * org.apache.geode.internal.cache will be able to see it
    */
+  @MakeNotStatic("This is modified in production code")
   public static boolean ISSUE_CALLBACKS_TO_CACHE_OBSERVER = false;
 
   /**
@@ -793,6 +796,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return this.cache.isClosed();
   }
 
+  @Override
   public RegionEntry getRegionEntry(Object key) {
     return this.entries.getEntry(key);
   }
@@ -1399,7 +1403,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     try {
       KeyInfo keyInfo = getKeyInfo(key, aCallbackArgument);
       Object value = getDataView().getDeserializedValue(keyInfo, this, true, disableCopyOnRead,
-          preferCD, clientEvent, returnTombstones, retainResult);
+          preferCD, clientEvent, returnTombstones, retainResult, true);
       final boolean isCreate = value == null;
       isMiss = value == null || Token.isInvalid(value)
           || (!returnTombstones && value == Token.TOMBSTONE);
@@ -1967,6 +1971,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return getDataView().containsKey(getKeyInfo(key), this);
   }
 
+  @Override
   public boolean containsTombstone(Object key) {
     checkReadiness();
     checkForNoAccess();
@@ -2083,6 +2088,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   /**
    * @return size after considering imageState
    */
+  @Override
   public int getRegionSize() {
     synchronized (getSizeGuard()) {
       int result = getRegionMap().size();
@@ -3060,7 +3066,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   void checkPutIfAbsentResult(EntryEventImpl event, Object value, Object result) {
     if (result != null) {
       // we may see a non null result possibly due to retry
-      if (event.hasRetried() && putIfAbsentResultHasSameValue(value, result)) {
+      if (event.hasRetried() && putIfAbsentResultHasSameValue(true, value, result)) {
         if (logger.isDebugEnabled()) {
           logger.debug("retried putIfAbsent and result is the value to be put,"
               + " treat as a successful putIfAbsent");
@@ -3072,11 +3078,29 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     }
   }
 
-  boolean putIfAbsentResultHasSameValue(Object value, Object result) {
-    if (Token.isInvalid(result)) {
-      return value == null;
+  boolean putIfAbsentResultHasSameValue(boolean isClient, Object valueToBePut, Object result) {
+    if (Token.isInvalid(result) || result == null) {
+      return valueToBePut == null;
     }
-    return result.equals(value);
+
+    boolean isCompressedOffHeap =
+        isClient ? false : getAttributes().getOffHeap() && getAttributes().getCompressor() != null;
+    return ValueComparisonHelper.checkEquals(valueToBePut, result, isCompressedOffHeap, getCache());
+  }
+
+  boolean bridgePutIfAbsentResultHasSameValue(byte[] valueToBePut, boolean isValueToBePutObject,
+      Object result) {
+    if (Token.isInvalid(result) || result == null) {
+      return valueToBePut == null;
+    }
+
+    boolean isCompressedOffHeap =
+        getAttributes().getOffHeap() && getAttributes().getCompressor() != null;
+    if (isValueToBePutObject) {
+      return ValueComparisonHelper.checkEquals(EntryEventImpl.deserialize(valueToBePut), result,
+          isCompressedOffHeap, getCache());
+    }
+    return ValueComparisonHelper.checkEquals(valueToBePut, result, isCompressedOffHeap, getCache());
   }
 
   /**
@@ -3544,6 +3568,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
    *
    * @since GemFire 5.1
    */
+  @Override
   public Object getValueOnDiskOrBuffer(Object key) throws EntryNotFoundException {
     // Ok for this to ignore tx state
     RegionEntry re = this.entries.getEntry(key);
@@ -5682,7 +5707,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     try {
       oldEntry = this.entries.basicPut(event, lastModified, ifNew, ifOld, expectedOldValue,
           requireOldValue, overwriteDestroyed);
-
     } catch (ConcurrentCacheModificationException ignore) {
       // this can happen in a client cache when another thread
       // managed to slip in its version info to the region entry before this
@@ -5691,6 +5715,8 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         logger.debug("caught concurrent modification attempt when applying {}", event);
       }
       notifyBridgeClients(event);
+      notifyGatewaySender(event.getOperation().isUpdate() ? EnumListenerEvent.AFTER_UPDATE
+          : EnumListenerEvent.AFTER_CREATE, event);
       return false;
     }
 
@@ -5706,7 +5732,6 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
         return true;
       }
     }
-
     return oldEntry != null;
   }
 
@@ -6188,8 +6213,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   protected void notifyGatewaySender(EnumListenerEvent operation, EntryEventImpl event) {
-    if (isPdxTypesRegion() || event.isConcurrencyConflict()) {
-      // isConcurrencyConflict is usually a concurrent cache modification problem
+    if (isPdxTypesRegion()) {
       return;
     }
 
@@ -6584,6 +6608,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       // Notify clients only if its NOT a gateway event.
       if (event.getVersionTag() != null && !event.getVersionTag().isGatewayTag()) {
         notifyBridgeClients(event);
+        notifyGatewaySender(EnumListenerEvent.AFTER_DESTROY, event);
       }
       return true; // event was elided
 
@@ -10473,6 +10498,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     return this.cacheServiceProfiles.getSnapshot();
   }
 
+  @Override
   public void addCacheServiceProfile(CacheServiceProfile profile) {
     cacheServiceProfileUpdateLock.lock();
     try {
@@ -10490,6 +10516,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
   }
 
   /** visitor over the CacheProfiles to check if the region has a CacheLoader */
+  @Immutable
   private static final DistributionAdvisor.ProfileVisitor<Void> netLoaderVisitor =
       new DistributionAdvisor.ProfileVisitor<Void>() {
         @Override
@@ -10509,6 +10536,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       };
 
   /** visitor over the CacheProfiles to check if the region has a CacheWriter */
+  @Immutable
   private static final DistributionAdvisor.ProfileVisitor<Void> netWriterVisitor =
       new DistributionAdvisor.ProfileVisitor<Void>() {
         @Override
@@ -11224,19 +11252,19 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     @Override
     public void incDestroys() {
-      this.stats.incInt(destroysId, 1);
+      this.stats.incLong(destroysId, 1L);
       this.cachePerfStats.incDestroys();
     }
 
     @Override
     public void incCreates() {
-      this.stats.incInt(createsId, 1);
+      this.stats.incLong(createsId, 1L);
       this.cachePerfStats.incCreates();
     }
 
     @Override
     public void incInvalidates() {
-      this.stats.incInt(invalidatesId, 1);
+      this.stats.incLong(invalidatesId, 1L);
       this.cachePerfStats.incInvalidates();
     }
 
@@ -11272,9 +11300,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       if (enableClockStats) {
         this.stats.incLong(getTimeId, getStatTime() - start);
       }
-      this.stats.incInt(getsId, 1);
+      this.stats.incLong(getsId, 1L);
       if (miss) {
-        this.stats.incInt(missesId, 1);
+        this.stats.incLong(missesId, 1L);
       }
       this.cachePerfStats.endGet(start, miss);
     }
@@ -11287,13 +11315,13 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
     public long endPut(long start, boolean isUpdate) {
       long total = 0;
       if (isUpdate) {
-        this.stats.incInt(updatesId, 1);
+        this.stats.incLong(updatesId, 1L);
         if (enableClockStats) {
           total = getStatTime() - start;
           this.stats.incLong(updateTimeId, total);
         }
       } else {
-        this.stats.incInt(putsId, 1);
+        this.stats.incLong(putsId, 1L);
         if (enableClockStats) {
           total = getStatTime() - start;
           this.stats.incLong(putTimeId, total);
@@ -11305,9 +11333,9 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     @Override
     public void endPutAll(long start) {
-      this.stats.incInt(putallsId, 1);
+      this.stats.incInt(putAllsId, 1);
       if (enableClockStats) {
-        this.stats.incLong(putallTimeId, getStatTime() - start);
+        this.stats.incLong(putAllTimeId, getStatTime() - start);
       }
       this.cachePerfStats.endPutAll(start);
     }
@@ -11448,7 +11476,7 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
 
     @Override
     public void incClearCount() {
-      this.stats.incInt(clearsId, 1);
+      this.stats.incLong(clearsId, 1L);
       this.cachePerfStats.incClearCount();
     }
 
@@ -11616,7 +11644,15 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       final boolean ifOld = false;
       final boolean requireOldValue = true;
       if (!basicPut(event, ifNew, ifOld, oldValue, requireOldValue)) {
-        return event.getOldValue();
+        Object result = event.getOldValue();
+        if (event.isPossibleDuplicate() && putIfAbsentResultHasSameValue(false, value, result)) {
+          if (logger.isDebugEnabled()) {
+            logger.debug("possible duplicate putIfAbsent event and result is the value to be put,"
+                + " treat this as a successful putIfAbsent");
+          }
+          return null;
+        }
+        return result;
       } else {
         if (!getDataView().isDeferredStats()) {
           getCachePerfStats().endPut(startPut, false);
@@ -11852,14 +11888,28 @@ public class LocalRegion extends AbstractRegion implements LoaderHelperFactory,
       if (basicPut) {
         clientEvent.setVersionTag(event.getVersionTag());
         clientEvent.isConcurrencyConflict(event.isConcurrencyConflict());
-      } else if (oldValue == null) {
-        // fix for 42189, putIfAbsent on server can return null if the
-        // operation was not performed (oldValue in cache was null).
-        // We return the INVALID token instead of null to distinguish
-        // this case from successful operation
-        return Token.INVALID;
-      }
+      } else {
+        if (value != null) {
+          assert (value instanceof byte[]);
+        }
+        if (event.isPossibleDuplicate()
+            && bridgePutIfAbsentResultHasSameValue((byte[]) value, isObject, oldValue)) {
+          // result is possibly due to the retry
+          if (logger.isDebugEnabled()) {
+            logger.debug("retried putIfAbsent and got oldValue as the value to be put,"
+                + " treat this as a successful putIfAbsent");
+          }
+          return null;
+        }
 
+        if (oldValue == null) {
+          // fix for 42189, putIfAbsent on server can return null if the
+          // operation was not performed (oldValue in cache was null).
+          // We return the INVALID token instead of null to distinguish
+          // this case from successful operation
+          return Token.INVALID;
+        }
+      }
       return oldValue;
     } finally {
       event.release();

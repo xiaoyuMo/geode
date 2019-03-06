@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -49,6 +50,7 @@ import org.apache.geode.internal.logging.LogService;
 public class InitialImageFlowControl implements MembershipListener {
   private static final Logger logger = LogService.getLogger();
 
+  @MakeNotStatic
   private static final ProcessorKeeper21 keeper = new ProcessorKeeper21(false);
   private int id;
   private int maxPermits = InitialImageOperation.CHUNK_PERMITS;
@@ -155,6 +157,7 @@ public class InitialImageFlowControl implements MembershipListener {
     return id;
   }
 
+  @Override
   public void memberDeparted(DistributionManager distributionManager, InternalDistributedMember id,
       boolean crashed) {
     if (id.equals(target)) {
@@ -171,13 +174,16 @@ public class InitialImageFlowControl implements MembershipListener {
     }
   }
 
+  @Override
   public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {
     // Do nothing
   }
 
+  @Override
   public void quorumLost(DistributionManager distributionManager,
       Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
+  @Override
   public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
       InternalDistributedMember whoSuspected, String reason) {
     // Do nothing
@@ -225,6 +231,7 @@ public class InitialImageFlowControl implements MembershipListener {
       }
     }
 
+    @Override
     public int getDSFID() {
       return FLOW_CONTROL_PERMIT_MESSAGE;
     }

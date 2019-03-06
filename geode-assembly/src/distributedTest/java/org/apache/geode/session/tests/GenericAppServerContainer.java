@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntSupplier;
 
 import org.junit.Assume;
 
@@ -53,15 +54,15 @@ public class GenericAppServerContainer extends ServerContainer {
    * container properties (i.e. locator, local cache, etc.)
    */
   public GenericAppServerContainer(GenericAppServerInstall install, File containerConfigHome,
-      String containerDescriptors) throws IOException {
-    super(install, containerConfigHome, containerDescriptors);
+      String containerDescriptors, IntSupplier portSupplier) throws IOException {
+    super(install, containerConfigHome, containerDescriptors, portSupplier);
 
     // Setup modify war script file so that it is executable and easily findable
     modifyWarScript = new File(install.getModulePath() + "/bin/modify_war");
     modifyWarScript.setExecutable(true);
 
     // Setup modify_war script logging file
-    modifyWarScriptLog = new File(logDir + "/warScript.log");
+    modifyWarScriptLog = new File(cargoLogDir + "/warScript.log");
     modifyWarScriptLog.createNewFile();
 
     // Ignore tests that are running on windows, since they can't run the modify war script
@@ -141,6 +142,7 @@ public class GenericAppServerContainer extends ServerContainer {
     // Setup the environment builder with the command
     builder.command(buildCommand());
     // Redirect the command line logging to a file
+
     builder.redirectError(modifyWarScriptLog);
     builder.redirectOutput(modifyWarScriptLog);
     logger.info("Running command: " + String.join(" ", builder.command()));
@@ -152,7 +154,8 @@ public class GenericAppServerContainer extends ServerContainer {
     int exitCode = process.waitFor();
     // Throw error if bad exit
     if (exitCode != 0) {
-      throw new IOException("Unable to run modify_war script: " + builder.command());
+      throw new IOException("Unable to run modify_war script, command: " + builder.command()
+          + "\ncheck log file: " + modifyWarScriptLog.getAbsolutePath());
     }
   }
 

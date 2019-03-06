@@ -48,7 +48,7 @@ public class CacheConfigTest {
     service.validateWithLocalCacheXSD();
     regionConfig = new RegionConfig();
     regionConfig.setName("regionA");
-    regionConfig.setRefid("REPLICATE");
+    regionConfig.setType("REPLICATE");
     regionXml = "<region name=\"regionA\" refid=\"REPLICATE\">";
 
     classNameTypeXml = "<class-name>my.className</class-name>";
@@ -163,7 +163,7 @@ public class CacheConfigTest {
     assertThat(regionAttributes.getCompressor().toString()).isEqualTo("my.className");
     assertThat(regionAttributes.getCacheLoader()).isEqualTo(declarableWithString);
     assertThat(regionAttributes.getCacheWriter()).isEqualTo(declarableWithString);
-    assertThat(regionAttributes.getRegionTimeToLive().getExpirationAttributes().getCustomExpiry())
+    assertThat(regionAttributes.getRegionTimeToLive().getCustomExpiry())
         .isEqualTo(declarableWithString);
   }
 
@@ -172,7 +172,7 @@ public class CacheConfigTest {
     cacheConfig = new CacheConfig("1.0");
     RegionConfig regionConfig = new RegionConfig();
     regionConfig.setName("test");
-    regionConfig.setRefid("REPLICATE");
+    regionConfig.setType("REPLICATE");
     RegionAttributesType attributes = new RegionAttributesType();
     attributes.setCacheLoader(new DeclarableType("abc.Foo"));
     regionConfig.setRegionAttributes(attributes);
@@ -183,5 +183,41 @@ public class CacheConfigTest {
 
     CacheConfig newCache = service.unMarshall(xml);
     assertThat(cacheConfig).isEqualToComparingFieldByFieldRecursively(newCache);
+  }
+
+  @Test
+  public void regionAttributeType() throws Exception {
+    String xml = "<region name=\"test\">\n"
+        + "        <region-attributes>\n"
+        + "            <region-time-to-live>\n"
+        + "                <expiration-attributes action=\"invalidate\" timeout=\"20\">\n"
+        + "                    <custom-expiry>\n"
+        + "                        <class-name>bar</class-name>\n"
+        + "                    </custom-expiry>\n"
+        + "                </expiration-attributes>\n"
+        + "            </region-time-to-live>\n"
+        + "            <entry-time-to-live>\n"
+        + "                <expiration-attributes action=\"destroy\" timeout=\"10\">\n"
+        + "                    <custom-expiry>\n"
+        + "                        <class-name>foo</class-name>\n"
+        + "                    </custom-expiry>\n"
+        + "                </expiration-attributes>\n"
+        + "            </entry-time-to-live>\n"
+        + "        </region-attributes>\n"
+        + "    </region>";
+
+    RegionConfig regionConfig = service.unMarshall(xml, RegionConfig.class);
+    RegionAttributesType.ExpirationAttributesType entryTimeToLive =
+        regionConfig.getRegionAttributes().getEntryTimeToLive();
+    assertThat(entryTimeToLive.getTimeout()).isEqualTo("10");
+    assertThat(entryTimeToLive.getAction()).isEqualTo("destroy");
+    assertThat(entryTimeToLive.getCustomExpiry().getClassName()).isEqualTo("foo");
+    RegionAttributesType.ExpirationAttributesType regionTimeToLive =
+        regionConfig.getRegionAttributes().getRegionTimeToLive();
+    assertThat(regionTimeToLive.getTimeout()).isEqualTo("20");
+    assertThat(regionTimeToLive.getAction()).isEqualTo("invalidate");
+    assertThat(regionTimeToLive.getCustomExpiry().getClassName()).isEqualTo("bar");
+
+    cacheConfig.getRegions().add(regionConfig);
   }
 }

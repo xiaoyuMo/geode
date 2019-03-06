@@ -38,6 +38,7 @@ import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.ObjToByteArraySerializer;
 import org.apache.geode.internal.Version;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.net.Buffers;
 
 /**
  * <p>
@@ -104,6 +105,7 @@ public class MsgStreamer extends OutputStream
    * Returns an exception the describes which cons the message was not sent to. Call this after
    * {@link #writeMessage}.
    */
+  @Override
   public ConnectExceptions getConnectExceptions() {
     return this.ce;
   }
@@ -112,6 +114,7 @@ public class MsgStreamer extends OutputStream
    * Returns a list of the Connections that the message was sent to. Call this after
    * {@link #writeMessage}.
    */
+  @Override
   public List<?> getSentConnections() {
     return this.cons;
   }
@@ -209,6 +212,7 @@ public class MsgStreamer extends OutputStream
    * set connections to be "in use" and schedule alert tasks
    *
    */
+  @Override
   public void reserveConnections(long startTime, long ackTimeout, long ackSDTimeout) {
     for (Iterator it = cons.iterator(); it.hasNext();) {
       Connection con = (Connection) it.next();
@@ -226,6 +230,7 @@ public class MsgStreamer extends OutputStream
   /**
    * @throws IOException if serialization failure
    */
+  @Override
   public int writeMessage() throws IOException {
     // if (logger.isTraceEnabled()) logger.trace(this.msg);
 
@@ -459,6 +464,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the boolean to be written.
    */
+  @Override
   public void writeBoolean(boolean v) {
     write(v ? 1 : 0);
   }
@@ -472,6 +478,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the byte value to be written.
    */
+  @Override
   public void writeByte(int v) {
     write(v);
   }
@@ -494,6 +501,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>short</code> value to be written.
    */
+  @Override
   public void writeShort(int v) {
     // if (logger.isTraceEnabled()) logger.trace(" short={}", v);
 
@@ -523,6 +531,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>char</code> value to be written.
    */
+  @Override
   public void writeChar(int v) {
     // if (logger.isTraceEnabled()) logger.trace(" char={}", v);
 
@@ -553,6 +562,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>int</code> value to be written.
    */
+  @Override
   public void writeInt(int v) {
     // if (logger.isTraceEnabled()) logger.trace(" int={}", v);
 
@@ -587,6 +597,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>long</code> value to be written.
    */
+  @Override
   public void writeLong(long v) {
     // if (logger.isTraceEnabled()) logger.trace(" long={}", v);
 
@@ -608,6 +619,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>float</code> value to be written.
    */
+  @Override
   public void writeFloat(float v) {
     // if (logger.isTraceEnabled()) logger.trace(" float={}", v);
 
@@ -629,6 +641,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param v the <code>double</code> value to be written.
    */
+  @Override
   public void writeDouble(double v) {
     // if (logger.isTraceEnabled()) logger.trace(" double={}", v);
 
@@ -653,6 +666,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param str the string of bytes to be written.
    */
+  @Override
   public void writeBytes(String str) {
     // if (logger.isTraceEnabled()) logger.trace(" bytes={}", str);
 
@@ -678,6 +692,7 @@ public class MsgStreamer extends OutputStream
    *
    * @param s the string value to be written.
    */
+  @Override
   public void writeChars(String s) {
     // if (logger.isTraceEnabled()) logger.trace(" chars={}", s);
 
@@ -767,6 +782,7 @@ public class MsgStreamer extends OutputStream
    * @param str the string value to be written.
    * @exception IOException if an I/O error occurs.
    */
+  @Override
   public void writeUTF(String str) throws IOException {
     // if (logger.isTraceEnabled()) logger.trace(" utf={}", str);
 
@@ -890,6 +906,7 @@ public class MsgStreamer extends OutputStream
    * the contents of the HeapDataOutputStream to this streamer. All of this is done to prevent an
    * extra copy when the serialized form will all fit into our current buffer.
    */
+  @Override
   public void writeAsSerializedByteArray(Object v) throws IOException {
     if (v instanceof HeapDataOutputStream) {
       HeapDataOutputStream other = (HeapDataOutputStream) v;

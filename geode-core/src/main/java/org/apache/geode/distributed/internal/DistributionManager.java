@@ -180,6 +180,7 @@ public interface DistributionManager extends ReplySender {
    *
    * @return recipients who did not receive the message
    */
+  @Override
   Set<InternalDistributedMember> putOutgoing(DistributionMessage msg);
 
   /**
@@ -198,6 +199,8 @@ public interface DistributionManager extends ReplySender {
    * @throws IllegalArgumentException <code>l</code> was not registered on this distribution manager
    */
   void removeMembershipListener(MembershipListener l);
+
+  Collection<MembershipListener> getMembershipListeners();
 
   /**
    * Removes a <code>MembershipListener</code> listening for all members from this distribution

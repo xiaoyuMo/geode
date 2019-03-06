@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.deadlock.MessageDependencyMonitor;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -69,6 +70,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
   /**
    * Indicates that a distribution message should be sent to all other distribution managers.
    */
+  @Immutable
   public static final InternalDistributedMember ALL_RECIPIENTS = null;
 
   // common flags used by operation messages
@@ -428,6 +430,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
     } else { // not inline
       try {
         getExecutor(dm).execute(new SizeableRunnable(this.getBytesRead()) {
+          @Override
           public void run() {
             scheduleAction(dm);
           }
@@ -495,7 +498,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
       if (pid != 0) {
         procId = " processorId=" + pid;
       }
-      if (Thread.currentThread().getName().startsWith("P2P Message Reader")) {
+      if (Thread.currentThread().getName().startsWith(Connection.THREAD_KIND_IDENTIFIER)) {
         sender = procId;
       } else {
         sender = "sender=" + getSender() + procId;
@@ -553,6 +556,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
    * classes that override this method should always invoke the inherited method
    * (<code>super.toData()</code>).
    */
+  @Override
   public void toData(DataOutput out) throws IOException {
     // DataSerializer.writeObject(this.recipients, out); // no need to serialize; filled in later
     // ((IpAddress)this.sender).toData(out); // no need to serialize; filled in later
@@ -564,6 +568,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
    * classes that override this method should always invoke the inherited method
    * (<code>super.fromData()</code>).
    */
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
 
     // this.recipients = (Set)DataSerializer.readObject(in); // no to deserialize; filled in later
@@ -673,6 +678,7 @@ public abstract class DistributionMessage implements DataSerializableFixedID, Cl
     return sb.toString();
   }
 
+  @Override
   public Version[] getSerializationVersions() {
     return null;
   }

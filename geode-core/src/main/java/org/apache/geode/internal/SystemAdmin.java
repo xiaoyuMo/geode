@@ -71,6 +71,8 @@ import org.apache.geode.UncreatedSystemException;
 import org.apache.geode.UnstartedSystemException;
 import org.apache.geode.admin.AdminException;
 import org.apache.geode.admin.internal.AdminDistributedSystemImpl;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.persistence.PersistentID;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -1049,14 +1051,17 @@ public class SystemAdmin {
           + this.statId;
     }
 
+    @Override
     public int getCombineType() {
       return this.combineType;
     }
 
+    @Override
     public boolean archiveMatches(File archive) {
       return true;
     }
 
+    @Override
     public boolean statMatches(String statName) {
       if (this.sp == null) {
         return true;
@@ -1066,6 +1071,7 @@ public class SystemAdmin {
       }
     }
 
+    @Override
     public boolean typeMatches(String typeName) {
       if (this.tp == null) {
         return true;
@@ -1075,6 +1081,7 @@ public class SystemAdmin {
       }
     }
 
+    @Override
     public boolean instanceMatches(String textId, long numericId) {
       if (this.ip == null) {
         return true;
@@ -1707,72 +1714,113 @@ public class SystemAdmin {
   }
 
   // option statics
+  @MakeNotStatic
   private static boolean debug = false;
+  @MakeNotStatic
   private static boolean details = false;
+  @MakeNotStatic
   private static boolean nofilter = false;
+  @MakeNotStatic
   private static boolean persec = false;
+  @MakeNotStatic
   private static boolean persample = false;
+  @MakeNotStatic
   private static boolean prunezeros = false;
+  @MakeNotStatic
   private static boolean quiet = false;
+  @MakeNotStatic
   private static boolean help = false;
+  @MakeNotStatic
   private static boolean monitor = false;
+  @MakeNotStatic
   private static boolean showBuckets = false;
+  @MakeNotStatic
   private static long startTime = -1;
+  @MakeNotStatic
   private static long endTime = -1;
+  @MakeNotStatic
   private static String portOption = null;
+  @MakeNotStatic
   private static String addressOption = "";
+  @MakeNotStatic
   private static String regionOption = null;
+  @MakeNotStatic
   private static long maxOplogSize = -1L;
+  @MakeNotStatic
   private static String lruOption = null;
+  @MakeNotStatic
   private static String lruActionOption = null;
+  @MakeNotStatic
   private static String lruLimitOption = null;
+  @MakeNotStatic
   private static String concurrencyLevelOption = null;
+  @MakeNotStatic
   private static String initialCapacityOption = null;
+  @MakeNotStatic
   private static String loadFactorOption = null;
+  @MakeNotStatic
   private static String compressorClassNameOption = null;
+  @MakeNotStatic
   private static String statisticsEnabledOption = null;
+  @MakeNotStatic
   private static boolean remove = false;
+  @MakeNotStatic
   private static String sysDirName = null;
-  private static ArrayList archiveOption = new ArrayList();
+  @MakeNotStatic
+  private static final ArrayList archiveOption = new ArrayList();
+  @MakeNotStatic
   private static String printStacksOption = null;
+  @MakeNotStatic
   private static String outOption = null;
+  @MakeNotStatic
   private static Properties propertyOption = new Properties();
+  @MakeNotStatic
   private static boolean serverOption = true;
+  @MakeNotStatic
   private static boolean peerOption = true;
+  @MakeNotStatic
   private static String gemfirePropertiesFileOption = null;
-  private static ArrayList xoptions = new ArrayList();
+  @MakeNotStatic
+  private static final ArrayList xoptions = new ArrayList();
+  @MakeNotStatic
   private static String hostnameForClientsOption = null;
+  @MakeNotStatic
   private static String baselineDir = null; // Baseline directory option value for backup command
+  @MakeNotStatic
   private static String outputDir = null;
 
-  private static Map cmdOptionsMap = new HashMap();
+  @Immutable
+  private static final Map<String, String[]> cmdOptionsMap;
   static {
-    cmdOptionsMap.put("gemfire", new String[] {"--help", "-h", "-help", "-debug", "-q"});
-    cmdOptionsMap.put("version", new String[] {});
-    cmdOptionsMap.put("help", new String[] {});
-    cmdOptionsMap.put("merge-logs", new String[] {"-out="});
-    cmdOptionsMap.put("stats", new String[] {"-details", "-monitor", "-nofilter", "-persec",
+    Map<String, String[]> optionsMap = new HashMap<>();
+    optionsMap.put("gemfire", new String[] {"--help", "-h", "-help", "-debug", "-q"});
+    optionsMap.put("version", new String[] {});
+    optionsMap.put("help", new String[] {});
+    optionsMap.put("merge-logs", new String[] {"-out="});
+    optionsMap.put("stats", new String[] {"-details", "-monitor", "-nofilter", "-persec",
         "-persample", "-prunezeros", "-archive=", "-starttime=", "-endtime="});
-    cmdOptionsMap.put(START_LOCATOR, new String[] {"-port=", "-dir=", "-address=", "-properties=",
+    optionsMap.put(START_LOCATOR, new String[] {"-port=", "-dir=", "-address=", "-properties=",
         "-D", "-X", "-peer=", "-server=", "-hostname-for-clients="});
-    cmdOptionsMap.put("stop-locator", new String[] {"-port=", "-dir=", "-address=", "-D"});
-    cmdOptionsMap.put("status-locator", new String[] {"-dir=", "-D"});
-    cmdOptionsMap.put("info-locator", new String[] {"-dir=", "-D"});
-    cmdOptionsMap.put("tail-locator-log", new String[] {"-dir=", "-D"});
-    cmdOptionsMap.put("validate-disk-store", new String[] {});
-    cmdOptionsMap.put("upgrade-disk-store", new String[] {"-maxOplogSize="});
-    cmdOptionsMap.put("compact-disk-store", new String[] {"-maxOplogSize="});
-    cmdOptionsMap.put("modify-disk-store",
+    optionsMap.put("stop-locator", new String[] {"-port=", "-dir=", "-address=", "-D"});
+    optionsMap.put("status-locator", new String[] {"-dir=", "-D"});
+    optionsMap.put("info-locator", new String[] {"-dir=", "-D"});
+    optionsMap.put("tail-locator-log", new String[] {"-dir=", "-D"});
+    optionsMap.put("validate-disk-store", new String[] {});
+    optionsMap.put("upgrade-disk-store", new String[] {"-maxOplogSize="});
+    optionsMap.put("compact-disk-store", new String[] {"-maxOplogSize="});
+    optionsMap.put("modify-disk-store",
         new String[] {"-region=", "-remove", "-lru=", "-lruAction=", "-lruLimit=",
             "-concurrencyLevel=", "-initialCapacity=", "-loadFactor=", "-statisticsEnabled="});
-    cmdOptionsMap.put("list-missing-disk-stores", new String[] {});
-    cmdOptionsMap.put("compact-all-disk-stores", new String[] {});
-    cmdOptionsMap.put("revoke-missing-disk-store", new String[] {});
-    cmdOptionsMap.put("show-disk-store-metadata", new String[] {"-buckets"});
-    cmdOptionsMap.put("export-disk-store", new String[] {"-outputDir="});
-    cmdOptionsMap.put("shut-down-all", new String[] {});
-    cmdOptionsMap.put("backup", new String[] {"-baseline="});
-    cmdOptionsMap.put("print-stacks", new String[] {"-all-threads"});
+    optionsMap.put("list-missing-disk-stores", new String[] {});
+    optionsMap.put("compact-all-disk-stores", new String[] {});
+    optionsMap.put("revoke-missing-disk-store", new String[] {});
+    optionsMap.put("show-disk-store-metadata", new String[] {"-buckets"});
+    optionsMap.put("export-disk-store", new String[] {"-outputDir="});
+    optionsMap.put("shut-down-all", new String[] {});
+    optionsMap.put("backup", new String[] {"-baseline="});
+    optionsMap.put("print-stacks", new String[] {"-all-threads"});
+
+    cmdOptionsMap = Collections.unmodifiableMap(optionsMap);
   }
 
   private static long parseLong(String arg) {

@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.GemFireIOException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.Assert;
 import org.apache.geode.internal.DataSerializableFixedID;
@@ -88,6 +89,7 @@ public class DistributionAdvisor {
   /**
    * Incrementing serial number used to identify order of resource creation
    */
+  @MakeNotStatic
   private static final AtomicInteger serialNumberSequencer = new AtomicInteger(START_SERIAL_NUMBER);
 
   /**
@@ -193,14 +195,17 @@ public class DistributionAdvisor {
     this.advisee = advisee;
     this.ml = new MembershipListener() {
 
+      @Override
       public void memberJoined(DistributionManager distributionManager,
           InternalDistributedMember id) {
         // Ignore
       }
 
+      @Override
       public void quorumLost(DistributionManager distributionManager,
           Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
+      @Override
       @SuppressWarnings("synthetic-access")
       public void memberDeparted(DistributionManager distributionManager,
           final InternalDistributedMember id, boolean crashed) {
@@ -216,6 +221,7 @@ public class DistributionAdvisor {
         }
       }
 
+      @Override
       public void memberSuspect(DistributionManager distributionManager,
           InternalDistributedMember id, InternalDistributedMember whoSuspected, String reason) {}
 
@@ -1464,16 +1470,19 @@ public class DistributionAdvisor {
       return this.peerMemberId;
     }
 
+    @Override
     public int getDSFID() {
       return DA_PROFILE;
     }
 
+    @Override
     public void toData(DataOutput out) throws IOException {
       InternalDataSerializer.invokeToData(this.peerMemberId, out);
       out.writeInt(this.version);
       out.writeInt(this.serialNumber);
     }
 
+    @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       this.peerMemberId = new InternalDistributedMember();
       InternalDataSerializer.invokeFromData(this.peerMemberId, in);

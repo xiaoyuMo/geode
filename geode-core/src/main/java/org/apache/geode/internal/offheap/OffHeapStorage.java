@@ -21,6 +21,7 @@ import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -40,6 +41,7 @@ public class OffHeapStorage implements OffHeapMemoryStats {
       DistributionConfig.GEMFIRE_PREFIX + "offheap.stayConnectedOnOutOfOffHeapMemory";
 
   // statistics type
+  @Immutable
   private static final StatisticsType statsType;
   private static final String statsTypeName = "OffHeapMemoryStats";
   private static final String statsTypeDescription = "Statistics about off-heap memory storage.";
@@ -271,34 +273,42 @@ public class OffHeapStorage implements OffHeapMemoryStats {
     this.stats = f.createAtomicStatistics(statsType, statsName);
   }
 
+  @Override
   public void incFreeMemory(long value) {
     this.stats.incLong(freeMemoryId, value);
   }
 
+  @Override
   public void incMaxMemory(long value) {
     this.stats.incLong(maxMemoryId, value);
   }
 
+  @Override
   public void incUsedMemory(long value) {
     this.stats.incLong(usedMemoryId, value);
   }
 
+  @Override
   public void incObjects(int value) {
     this.stats.incInt(objectsId, value);
   }
 
+  @Override
   public long getFreeMemory() {
     return this.stats.getLong(freeMemoryId);
   }
 
+  @Override
   public long getMaxMemory() {
     return this.stats.getLong(maxMemoryId);
   }
 
+  @Override
   public long getUsedMemory() {
     return this.stats.getLong(usedMemoryId);
   }
 
+  @Override
   public int getObjects() {
     return this.stats.getInt(objectsId);
   }
@@ -377,6 +387,7 @@ public class OffHeapStorage implements OffHeapMemoryStats {
     return this.stats.getInt(fragmentationId);
   }
 
+  @Override
   public Statistics getStats() {
     return this.stats;
   }

@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.apache.geode.GemFireIOException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.client.ClientCache;
 import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.client.PoolManager;
@@ -351,7 +352,7 @@ public class AttributesFactory<K, V> {
   public AttributesFactory(RegionAttributes<K, V> regionAttributes) {
     synchronized (this.regionAttributes) {
       this.regionAttributes.cacheListeners =
-          new ArrayList<CacheListener<K, V>>(Arrays.asList(regionAttributes.getCacheListeners()));
+          new ArrayList<>(Arrays.asList(regionAttributes.getCacheListeners()));
     }
     this.regionAttributes.cacheLoader = regionAttributes.getCacheLoader();
     this.regionAttributes.cacheWriter = regionAttributes.getCacheWriter();
@@ -1299,7 +1300,7 @@ public class AttributesFactory<K, V> {
       if (attrs.getDataPolicy().withReplication() && !attrs.getDataPolicy().withPersistence()
           && attrs.getScope().isDistributed()) {
         RegionAttributesImpl<?, ?> rattr = attrs;
-        if (!rattr.isForBucketRegion()) {
+        if (!attrs.isForBucketRegion()) {
           if (attrs.getEvictionAttributes().getAction().isLocalDestroy()
               || attrs.getEntryIdleTimeout().getAction().isLocal()
               || attrs.getEntryTimeToLive().getAction().isLocal()
@@ -1488,7 +1489,6 @@ public class AttributesFactory<K, V> {
     }
   }
 
-
   private static class RegionAttributesImpl<K, V> extends UserSpecifiedRegionAttributes<K, V>
       implements Cloneable, Serializable {
     public Set<String> gatewaySenderIds;
@@ -1592,18 +1592,22 @@ public class AttributesFactory<K, V> {
       return buf.toString();
     }
 
+    @Override
     public CacheLoader<K, V> getCacheLoader() {
       return this.cacheLoader;
     }
 
+    @Override
     public CacheWriter<K, V> getCacheWriter() {
       return this.cacheWriter;
     }
 
+    @Override
     public Class<K> getKeyConstraint() {
       return this.keyConstraint;
     }
 
+    @Override
     public Class<V> getValueConstraint() {
       return this.valueConstraint;
     }
@@ -1612,31 +1616,38 @@ public class AttributesFactory<K, V> {
       return this.isBucketRegion;
     }
 
+    @Override
     public ExpirationAttributes getRegionTimeToLive() {
       return new ExpirationAttributes(this.regionTimeToLive, this.regionTimeToLiveExpirationAction);
     }
 
+    @Override
     public ExpirationAttributes getRegionIdleTimeout() {
       return new ExpirationAttributes(this.regionIdleTimeout,
           this.regionIdleTimeoutExpirationAction);
     }
 
+    @Override
     public ExpirationAttributes getEntryTimeToLive() {
       return new ExpirationAttributes(this.entryTimeToLive, this.entryTimeToLiveExpirationAction);
     }
 
+    @Override
     public CustomExpiry<K, V> getCustomEntryTimeToLive() {
       return this.customEntryTimeToLive;
     }
 
+    @Override
     public ExpirationAttributes getEntryIdleTimeout() {
       return new ExpirationAttributes(this.entryIdleTimeout, this.entryIdleTimeoutExpirationAction);
     }
 
+    @Override
     public CustomExpiry<K, V> getCustomEntryIdleTimeout() {
       return this.customEntryIdleTimeout;
     }
 
+    @Override
     @SuppressWarnings("deprecation")
     public MirrorType getMirrorType() {
       if (this.dataPolicy.isNormal() || this.dataPolicy.isPreloaded() || this.dataPolicy.isEmpty()
@@ -1651,6 +1662,7 @@ public class AttributesFactory<K, V> {
       }
     }
 
+    @Override
     public DataPolicy getDataPolicy() {
       return this.dataPolicy;
     }
@@ -1660,6 +1672,7 @@ public class AttributesFactory<K, V> {
       setHasDataPolicy(true);
     }
 
+    @Override
     public Scope getScope() {
       return this.scope;
     }
@@ -1669,8 +1682,10 @@ public class AttributesFactory<K, V> {
       setHasScope(true);
     }
 
+    @Immutable
     private static final CacheListener<?, ?>[] EMPTY_LISTENERS = new CacheListener[0];
 
+    @Override
     @SuppressWarnings("unchecked")
     public CacheListener<K, V>[] getCacheListeners() {
       ArrayList<CacheListener<K, V>> listeners = this.cacheListeners;
@@ -1689,6 +1704,7 @@ public class AttributesFactory<K, V> {
       }
     }
 
+    @Override
     public CacheListener<K, V> getCacheListener() {
       ArrayList<CacheListener<K, V>> listeners = this.cacheListeners;
       if (listeners == null) {
@@ -1758,30 +1774,37 @@ public class AttributesFactory<K, V> {
       setHasAsyncEventListeners(true);
     }
 
+    @Override
     public int getInitialCapacity() {
       return this.initialCapacity;
     }
 
+    @Override
     public float getLoadFactor() {
       return this.loadFactor;
     }
 
+    @Override
     public boolean getStatisticsEnabled() {
       return this.statisticsEnabled;
     }
 
+    @Override
     public boolean getIgnoreJTA() {
       return this.ignoreJTA;
     }
 
+    @Override
     public boolean isLockGrantor() {
       return this.isLockGrantor;
     }
 
+    @Override
     public int getConcurrencyLevel() {
       return this.concurrencyLevel;
     }
 
+    @Override
     public boolean getConcurrencyChecksEnabled() {
       return this.concurrencyChecksEnabled;
     }
@@ -1813,10 +1836,12 @@ public class AttributesFactory<K, V> {
       }
     }
 
+    @Override
     public boolean getPersistBackup() {
       return getDataPolicy().withPersistence();
     }
 
+    @Override
     public boolean getEarlyAck() {
       return this.earlyAck;
     }
@@ -1824,23 +1849,28 @@ public class AttributesFactory<K, V> {
     /*
      * @deprecated as of 6.5
      */
+    @Override
     @Deprecated
     public boolean getPublisher() {
       return this.publisher;
     }
 
+    @Override
     public boolean getEnableConflation() { // deprecated in 5.0
       return getEnableSubscriptionConflation();
     }
 
+    @Override
     public boolean getEnableAsyncConflation() {
       return this.enableAsyncConflation;
     }
 
+    @Override
     public boolean getEnableBridgeConflation() { // deprecated in 5.7
       return getEnableSubscriptionConflation();
     }
 
+    @Override
     public boolean getEnableSubscriptionConflation() {
       return this.enableSubscriptionConflation;
     }
@@ -1848,6 +1878,7 @@ public class AttributesFactory<K, V> {
     /**
      * @deprecated as of 6.5
      */
+    @Override
     @Deprecated
     public DiskWriteAttributes getDiskWriteAttributes() {
       if (this.diskStoreName != null) {
@@ -1861,6 +1892,7 @@ public class AttributesFactory<K, V> {
     /**
      * @deprecated as of 6.5
      */
+    @Override
     @Deprecated
     public File[] getDiskDirs() {
       if (this.diskStoreName != null) {
@@ -1871,14 +1903,17 @@ public class AttributesFactory<K, V> {
       return this.diskDirs;
     }
 
+    @Override
     public boolean getIndexMaintenanceSynchronous() {
       return this.indexMaintenanceSynchronous;
     }
 
+    @Override
     public PartitionAttributes getPartitionAttributes() {
       return this.partitionAttributes;
     }
 
+    @Override
     public EvictionAttributes getEvictionAttributes() {
       return this.evictionAttributes;
     }
@@ -1886,11 +1921,13 @@ public class AttributesFactory<K, V> {
     /**
      * @deprecated this API is scheduled to be removed
      */
+    @Override
     @Deprecated
     public MembershipAttributes getMembershipAttributes() {
       return this.membershipAttributes;
     }
 
+    @Override
     public SubscriptionAttributes getSubscriptionAttributes() {
       return this.subscriptionAttributes;
     }
@@ -1898,6 +1935,7 @@ public class AttributesFactory<K, V> {
     /**
      * @deprecated as of 6.5
      */
+    @Override
     @Deprecated
     public int[] getDiskDirSizes() {
       if (this.diskStoreName != null) {
@@ -1908,26 +1946,32 @@ public class AttributesFactory<K, V> {
       return this.diskSizes;
     }
 
+    @Override
     public String getDiskStoreName() {
       return this.diskStoreName;
     }
 
+    @Override
     public boolean getMulticastEnabled() {
       return this.multicastEnabled;
     }
 
+    @Override
     public String getPoolName() {
       return this.poolName;
     }
 
+    @Override
     public boolean getCloningEnabled() {
       return this.isCloningEnabled;
     }
 
+    @Override
     public boolean isDiskSynchronous() {
       return this.diskSynchronous;
     }
 
+    @Override
     public Set<String> getGatewaySenderIds() {
       if (!hasGatewaySenderId()) {
         this.gatewaySenderIds = new CopyOnWriteArraySet<String>();
@@ -1935,6 +1979,7 @@ public class AttributesFactory<K, V> {
       return this.gatewaySenderIds;
     }
 
+    @Override
     public Set<String> getAsyncEventQueueIds() {
       if (!hasAsyncEventListeners()) {
         this.asyncEventQueueIds = new CopyOnWriteArraySet<String>();

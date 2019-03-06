@@ -15,12 +15,16 @@
  * limitations under the License.
  */
 
+apply from: "${project.projectDir}/../gradle/publish.gradle"
+
+
 dependencies {
+  compile(platform(project(':boms:geode-all-bom')))
   compile(project(':geode-core'))
   distributedTestCompile(project(':geode-dunit')){
     exclude module: 'geode-core'
   }
 
 
-  distributedTestCompile('junit:junit:' + project.'junit.version')
+  distributedTestCompile('junit:junit')
 }

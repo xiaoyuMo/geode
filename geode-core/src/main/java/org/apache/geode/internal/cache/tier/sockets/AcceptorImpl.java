@@ -61,6 +61,7 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
 import org.apache.geode.ToDataException;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.client.internal.PoolImpl;
@@ -324,8 +325,10 @@ public class AcceptorImpl implements Acceptor, Runnable, CommBufferPool {
    */
   private long acceptorId;
 
+  @MakeNotStatic
   private static boolean isAuthenticationRequired;
 
+  @MakeNotStatic
   private static boolean isPostAuthzCallbackPresent;
 
   private boolean isGatewayReceiver;
@@ -798,6 +801,7 @@ public class AcceptorImpl implements Acceptor, Runnable, CommBufferPool {
   /**
    * break any potential circularity in {@link #loadEmergencyClasses()}
    */
+  @MakeNotStatic
   private static volatile boolean emergencyClassesLoaded = false;
 
   /**
@@ -995,7 +999,6 @@ public class AcceptorImpl implements Acceptor, Runnable, CommBufferPool {
       while (this.selector.isOpen() && !Thread.currentThread().isInterrupted()) {
         {
           SystemFailure.checkFailure();
-          // this.cache.getDistributedSystem().getCancelCriterion().checkCancelInProgress(null);
           if (this.cache.isClosed()) { // bug 38834
             break; // TODO should just ask cache's CancelCriterion
           }
@@ -1161,6 +1164,7 @@ public class AcceptorImpl implements Acceptor, Runnable, CommBufferPool {
    *
    * @see #accept
    */
+  @Override
   public void run() {
     try {
       accept();
@@ -1290,6 +1294,7 @@ public class AcceptorImpl implements Acceptor, Runnable, CommBufferPool {
     try {
       this.stats.incAcceptsInProgress();
       this.hsPool.execute(new Runnable() {
+        @Override
         public void run() {
           boolean finished = false;
           try {

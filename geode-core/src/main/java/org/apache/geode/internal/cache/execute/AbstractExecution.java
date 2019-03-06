@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.LowMemoryException;
 import org.apache.geode.cache.TransactionException;
 import org.apache.geode.cache.client.internal.ProxyCache;
@@ -95,6 +96,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
   protected ProxyCache proxyCache;
 
+  @MakeNotStatic
   private static final ConcurrentHashMap<String, byte[]> idToFunctionAttributes =
       new ConcurrentHashMap<String, byte[]>();
 
@@ -268,6 +270,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
         final ClusterDistributionManager newDM = (ClusterDistributionManager) dm;
         newDM.getFunctionExecutor().execute(new Runnable() {
+          @Override
           public void run() {
             executeFunctionLocally(fn, cx, sender, newDM);
             if (!sender.isLastResultReceived() && fn.hasResult()) {
@@ -296,6 +299,7 @@ public abstract class AbstractExecution implements InternalExecution {
     if (dm instanceof ClusterDistributionManager && !isTx) {
       final ClusterDistributionManager newDM = (ClusterDistributionManager) dm;
       newDM.getFunctionExecutor().execute(new Runnable() {
+        @Override
         public void run() {
           executeFunctionLocally(fn, cx, sender, newDM);
           if (!((InternalResultSender) sender).isLastResultReceived() && fn.hasResult()) {
@@ -357,6 +361,7 @@ public abstract class AbstractExecution implements InternalExecution {
     }
   }
 
+  @Override
   public ResultCollector execute(final String functionName) {
     if (functionName == null) {
       throw new FunctionException(
@@ -373,6 +378,7 @@ public abstract class AbstractExecution implements InternalExecution {
     return executeFunction(functionObject);
   }
 
+  @Override
   public ResultCollector execute(Function function) throws FunctionException {
     if (function == null) {
       throw new FunctionException(
@@ -392,6 +398,7 @@ public abstract class AbstractExecution implements InternalExecution {
     return executeFunction(function);
   }
 
+  @Override
   public void setWaitOnExceptionFlag(boolean waitOnException) {
     this.setForwardExceptions(waitOnException);
     this.waitOnException = waitOnException;
@@ -401,6 +408,7 @@ public abstract class AbstractExecution implements InternalExecution {
     return this.waitOnException;
   }
 
+  @Override
   public void setForwardExceptions(boolean forward) {
     this.forwardExceptions = forward;
   }

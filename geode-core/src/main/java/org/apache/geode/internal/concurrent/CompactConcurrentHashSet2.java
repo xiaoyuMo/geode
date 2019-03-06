@@ -47,6 +47,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+
 /**
  * <p>
  * This is the original javadoc describing ConcurrentHashMap. This class is actually a Set based on
@@ -290,7 +293,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   /**
    * The number of bits used for generation stamp in sizeCtl. Must be at least 6 for 32bit arrays.
    */
-  private static int RESIZE_STAMP_BITS = 16;
+  private static final int RESIZE_STAMP_BITS = 16;
 
   /**
    * The maximum number of threads that can help resize. Must fit in 32 - RESIZE_STAMP_BITS bits.
@@ -314,6 +317,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   static final int NCPU = Runtime.getRuntime().availableProcessors();
 
   /** For serialization compatibility. */
+  @Immutable
   private static final ObjectStreamField[] serialPersistentFields =
       {new ObjectStreamField("segments", Segment[].class),
           new ObjectStreamField("segmentMask", Integer.TYPE),
@@ -581,6 +585,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   /**
    * {@inheritDoc}
    */
+  @Override
   public int size() {
     long n = sumCount();
     return ((n < 0L) ? 0 : (n > (long) Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) n);
@@ -589,6 +594,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   /**
    * {@inheritDoc}
    */
+  @Override
   public boolean isEmpty() {
     return sumCount() <= 0L; // ignore transient negative values
   }
@@ -753,6 +759,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   /**
    * Removes all of the mappings from this map.
    */
+  @Override
   public void clear() {
     long delta = 0L; // negative number of deletions
     int i = 0;
@@ -1036,6 +1043,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       this.nextTable = tab;
     }
 
+    @Override
     Node<K> find(int h, Object k) {
       Node<K> e;
       int n;
@@ -1063,6 +1071,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       super(RESERVED, null, null);
     }
 
+    @Override
     Node<K> find(int h, Object k) {
       return null;
     }
@@ -1403,6 +1412,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       this.parent = parent;
     }
 
+    @Override
     Node<K> find(int h, Object k) {
       return findTreeNode(h, k, null);
     }
@@ -1559,6 +1569,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
      * Returns matching node or null if none. Tries to search using tree comparisons from root, but
      * continues linear search when lock not available.
      */
+    @Override
     Node<K> find(int h, Object k) {
       if (k != null) {
         for (Node<K> e = first; e != null;) {
@@ -1949,6 +1960,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       return true;
     }
 
+    @Immutable
     private static final sun.misc.Unsafe U;
     private static final long LOCKSTATE;
     static {
@@ -2116,6 +2128,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       super(tab, index, size, limit, map);
     }
 
+    @Override
     public K next() {
       Node<K> p;
       if ((p = next) == null)
@@ -2126,6 +2139,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
       return k;
     }
 
+    @Override
     public K nextElement() {
       return next();
     }
@@ -2159,6 +2173,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   /**
    * Generates initial value for per-thread CounterHashCodes.
    */
+  @MakeNotStatic("Possible ok singleton?")
   static final AtomicInteger counterHashCodeGenerator = new AtomicInteger();
 
   /**
@@ -2271,6 +2286,7 @@ public class CompactConcurrentHashSet2<V> extends AbstractSet<V> implements Set<
   }
 
   // Unsafe mechanics
+  @Immutable
   private static final sun.misc.Unsafe U;
   private static final long SIZECTL;
   private static final long TRANSFERINDEX;

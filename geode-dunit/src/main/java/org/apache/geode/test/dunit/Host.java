@@ -18,7 +18,10 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.geode.test.dunit.internal.ChildVMLauncher;
+import org.apache.geode.test.dunit.internal.ProcessHolder;
 import org.apache.geode.test.dunit.internal.RemoteDUnitVMIF;
+import org.apache.geode.test.dunit.internal.VMEventNotifier;
 import org.apache.geode.test.version.VersionManager;
 
 /**
@@ -29,7 +32,6 @@ import org.apache.geode.test.version.VersionManager;
  * Additionally, it provides access to the Java RMI registry that runs on the host. By default, an
  * RMI registry is only started on the host on which Hydra's Master VM runs. RMI registries may be
  * started on other hosts via additional Hydra configuration.
- *
  */
 @SuppressWarnings("serial")
 public abstract class Host implements Serializable {
@@ -44,6 +46,8 @@ public abstract class Host implements Serializable {
 
   /** The VMs that run on this host */
   private final List<VM> vms;
+
+  private final transient VMEventNotifier vmEventNotifier;
 
   /**
    * Returns the number of known hosts
@@ -99,7 +103,7 @@ public abstract class Host implements Serializable {
   /**
    * Creates a new {@code Host} with the given name
    */
-  protected Host(String hostName) {
+  protected Host(String hostName, VMEventNotifier vmEventNotifier) {
     if (hostName == null) {
       String message = "Cannot create a Host with a null name";
       throw new NullPointerException(message);
@@ -107,6 +111,7 @@ public abstract class Host implements Serializable {
 
     this.hostName = hostName;
     vms = new ArrayList<>();
+    this.vmEventNotifier = vmEventNotifier;
   }
 
   /**
@@ -162,9 +167,11 @@ public abstract class Host implements Serializable {
   /**
    * Adds a VM to this {@code Host} with the given process id and client record.
    */
-  protected void addVM(int vmid, RemoteDUnitVMIF client) {
-    VM vm = new VM(this, vmid, client);
+  protected void addVM(int vmid, RemoteDUnitVMIF client, ProcessHolder processHolder,
+      ChildVMLauncher childVMLauncher) {
+    VM vm = new VM(this, vmid, client, processHolder, childVMLauncher);
     vms.add(vm);
+    vmEventNotifier.notifyAfterCreateVM(vm);
   }
 
   public static VM getLocator() {
@@ -175,8 +182,9 @@ public abstract class Host implements Serializable {
     locator = l;
   }
 
-  protected void addLocator(int vmid, RemoteDUnitVMIF client) {
-    setLocator(new VM(this, vmid, client));
+  protected void addLocator(int vmid, RemoteDUnitVMIF client, ProcessHolder processHolder,
+      ChildVMLauncher childVMLauncher) {
+    setLocator(new VM(this, vmid, client, processHolder, childVMLauncher));
   }
 
   @Override
@@ -202,5 +210,9 @@ public abstract class Host implements Serializable {
   @Override
   public int hashCode() {
     return getHostName().hashCode();
+  }
+
+  VMEventNotifier getVMEventNotifier() {
+    return vmEventNotifier;
   }
 }

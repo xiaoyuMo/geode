@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DistributedSystemDisconnectedException;
 import org.apache.geode.distributed.internal.DistributionManager;
@@ -61,11 +62,13 @@ public class ConnectionTable {
   private static final Logger logger = LogService.getLogger();
 
   /** warning when descriptor limit reached */
+  @MakeNotStatic
   private static boolean ulimitWarningIssued;
 
   /**
    * true if the current thread wants non-shared resources
    */
+  @MakeNotStatic
   private static ThreadLocal threadWantsOwnResources = new ThreadLocal();
 
   /**
@@ -144,6 +147,7 @@ public class ConnectionTable {
    *
    * TODO this assumes no more than one instance is created at a time?
    */
+  @MakeNotStatic
   private static final AtomicReference lastInstance = new AtomicReference();
 
   /**
@@ -394,6 +398,9 @@ public class ConnectionTable {
     } // synchronized
 
     if (pc != null) {
+      if (logger.isDebugEnabled()) {
+        logger.debug("created PendingConnection {}", pc);
+      }
       result = handleNewPendingConnection(id, true /* fixes bug 43386 */, preserveOrder, m, pc,
           startTime, ackTimeout, ackSATimeout);
       if (!preserveOrder && scheduleTimeout) {
@@ -1177,9 +1184,11 @@ public class ConnectionTable {
         targetMember = this.id;
       }
 
+      int attempt = 0;
       for (;;) {
-        if (!this.pending)
+        if (!this.pending) {
           break;
+        }
         getConduit().getCancelCriterion().checkCancelInProgress(null);
 
         // wait a little bit...
@@ -1221,7 +1230,8 @@ public class ConnectionTable {
         e = m.get(this.id);
         // }
         if (e == this) {
-          if (logger.isDebugEnabled()) {
+          attempt += 1;
+          if (logger.isDebugEnabled() && (attempt % 20 == 1)) {
             logger.debug("Waiting for pending connection to complete: {} connection to {}; {}",
                 ((this.preserveOrder) ? "ordered" : "unordered"), this.id, this);
           }
@@ -1248,6 +1258,10 @@ public class ConnectionTable {
       } // for
       return this.conn;
 
+    }
+
+    public String toString() {
+      return super.toString() + " created by " + connectingThread.getName();
     }
   }
 

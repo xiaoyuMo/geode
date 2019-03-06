@@ -32,6 +32,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheRuntimeException;
@@ -83,6 +85,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   private static final Logger logger = LogService.getLogger();
 
   // Keep a 60 second history @ an estimated 1092 transactions/second ~= 16^4
+  @MakeNotStatic
   protected static final TXFarSideCMTracker txTracker = new TXFarSideCMTracker((60 * 1092));
 
   private ArrayList<RegionCommit> regions; // list of RegionCommit instances
@@ -108,9 +111,9 @@ public class TXCommitMessage extends PooledDistributionMessage
    * List of operations to do when processing this tx. Valid on farside only.
    */
   protected transient ArrayList farSideEntryOps;
-  private transient byte[] farsideBaseMembershipId; // only available on farside
-  private transient long farsideBaseThreadId; // only available on farside
-  private transient long farsideBaseSequenceId; // only available on farside
+  private byte[] farsideBaseMembershipId; // only available on farside
+  private long farsideBaseThreadId; // only available on farside
+  private long farsideBaseSequenceId; // only available on farside
 
   /**
    * (Nearside) true of any regions in this TX have required roles
@@ -118,11 +121,11 @@ public class TXCommitMessage extends PooledDistributionMessage
   private transient boolean hasReliableRegions = false;
 
   /**
-   * Set of all caching exceptions produced hile processing this tx
+   * Set of all caching exceptions produced while processing this tx
    */
   private transient Set processingExceptions = Collections.emptySet();
 
-  private transient ClientProxyMembershipID bridgeContext = null;
+  private ClientProxyMembershipID bridgeContext = null;
 
   /**
    * Version of the client that this TXCommitMessage is being sent to. Used for backwards
@@ -134,21 +137,25 @@ public class TXCommitMessage extends PooledDistributionMessage
    * A token to be put in TXManagerImpl#failoverMap to represent a CommitConflictException while
    * committing a transaction
    */
+  @Immutable
   public static final TXCommitMessage CMT_CONFLICT_MSG = new TXCommitMessage();
   /**
    * A token to be put in TXManagerImpl#failoverMap to represent a
    * TransactionDataNodeHasDepartedException
    * while committing a transaction
    */
+  @Immutable
   public static final TXCommitMessage REBALANCE_MSG = new TXCommitMessage();
   /**
    * A token to be put in TXManagerImpl#failoverMap to represent an exception while committing a
    * transaction
    */
+  @Immutable
   public static final TXCommitMessage EXCEPTION_MSG = new TXCommitMessage();
   /**
    * A token to be put in TXManagerImpl#failoverMap to represent a rolled back transaction
    */
+  @Immutable
   public static final TXCommitMessage ROLLBACK_MSG = new TXCommitMessage();
 
   public TXCommitMessage(TXId txIdent, DistributionManager dm, TXState txState) {
@@ -687,7 +694,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       if (isAckRequired()) {
         ack();
       }
-      if (!dm.getExistingCache().isClient()) {
+      if (!dm.getExistingCache().isClient() && bridgeContext != null) {
         getTracker().saveTXForClientFailover(txIdent, this);
       }
       if (logger.isDebugEnabled()) {
@@ -760,6 +767,7 @@ public class TXCommitMessage extends PooledDistributionMessage
     }
   }
 
+  @Override
   public int getDSFID() {
     // on near side send old TX_COMMIT_MESSAGE if there is at least one 7.0
     // member in the system, otherwise send the new 7.0.1 message.
@@ -923,7 +931,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   private boolean hasFlagsField(final Version version) {
-    return version.compareTo(Version.GEODE_170) >= 0;
+    return version.compareTo(Version.GEODE_1_7_0) >= 0;
   }
 
   private boolean useShadowKey() {
@@ -1066,6 +1074,7 @@ public class TXCommitMessage extends PooledDistributionMessage
   }
 
   public static class RegionCommit {
+    private final EntryEventFactory entryEventFactory = new EntryEventFactoryImpl();
     /**
      * The region that this commit represents. Valid on both nearside and farside.
      */
@@ -1265,7 +1274,8 @@ public class TXCommitMessage extends PooledDistributionMessage
         // No need to release because it is added to pendingCallbacks and they will be released
         // later
         EntryEventImpl eei =
-            AbstractRegionMap.createCallbackEvent(this.internalRegion, entryOp.op, entryOp.key,
+            entryEventFactory.createCallbackEvent(this.internalRegion, entryOp.op,
+                entryOp.key,
                 entryOp.value, this.msg.txIdent, txEvent, getEventId(entryOp), entryOp.callbackArg,
                 entryOp.filterRoutingInfo, this.msg.bridgeContext, null, entryOp.versionTag,
                 entryOp.tailKey);
@@ -1344,7 +1354,8 @@ public class TXCommitMessage extends PooledDistributionMessage
          */
         @Released
         EntryEventImpl eei =
-            AbstractRegionMap.createCallbackEvent(this.internalRegion, entryOp.op, entryOp.key,
+            entryEventFactory.createCallbackEvent(this.internalRegion, entryOp.op,
+                entryOp.key,
                 entryOp.value, this.msg.txIdent, txEvent, getEventId(entryOp), entryOp.callbackArg,
                 entryOp.filterRoutingInfo, this.msg.bridgeContext, null, entryOp.versionTag,
                 entryOp.tailKey);
@@ -1630,6 +1641,7 @@ public class TXCommitMessage extends PooledDistributionMessage
         return this.modSerialNum;
       }
 
+      @Override
       public int compareTo(Object o) {
         FarSideEntryOp other = (FarSideEntryOp) o;
         return getSortValue() - other.getSortValue();
@@ -1714,6 +1726,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       basicProcess(mess, dm);
     }
 
+    @Override
     public int getDSFID() {
       return COMMIT_PROCESS_FOR_LOCKID_MESSAGE;
     }
@@ -1766,6 +1779,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       basicProcess(mess, dm);
     }
 
+    @Override
     public int getDSFID() {
       return COMMIT_PROCESS_FOR_TXID_MESSAGE;
     }
@@ -1854,6 +1868,7 @@ public class TXCommitMessage extends PooledDistributionMessage
       out.writeInt(this.processorId);
     }
 
+    @Override
     public int getDSFID() {
       return COMMIT_PROCESS_QUERY_MESSAGE;
     }

@@ -26,6 +26,7 @@ import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
@@ -64,7 +65,6 @@ public class TXFarSideCMTracker {
   private final Map txInProgress;
   private final Object txHistory[];
   private int lastHistoryItem;
-  // private final DM dm;
 
   /**
    * Constructor for TXFarSideCMTracker
@@ -73,9 +73,6 @@ public class TXFarSideCMTracker {
    *        Far Siders did not receive the second message.
    */
   public TXFarSideCMTracker(int historySize) {
-    // InternalDistributedSystem sys = (InternalDistributedSystem)
-    // CacheFactory.getAnyInstance().getDistributedSystem();
-    // this.dm = sys.getDistributionManager();
     this.txInProgress = new HashMap();
     this.txHistory = new Object[historySize];
     this.lastHistoryItem = 0;
@@ -208,12 +205,15 @@ public class TXFarSideCMTracker {
     final Object lock = new Object();
     final MembershipListener memEar = new MembershipListener() {
       // MembershipListener implementation
+      @Override
       public void memberJoined(DistributionManager distributionManager,
           InternalDistributedMember id) {}
 
+      @Override
       public void memberSuspect(DistributionManager distributionManager,
           InternalDistributedMember id, InternalDistributedMember whoSuspected, String reason) {}
 
+      @Override
       public void memberDeparted(DistributionManager distributionManager,
           InternalDistributedMember id, boolean crashed) {
         if (memberId.equals(id)) {
@@ -223,6 +223,7 @@ public class TXFarSideCMTracker {
         }
       }
 
+      @Override
       public void quorumLost(DistributionManager distributionManager,
           Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
     };
@@ -337,6 +338,7 @@ public class TXFarSideCMTracker {
   // TODO we really need to keep around only one msg for each thread on a client
   private Map<TXId, TXCommitMessage> failoverMap =
       Collections.synchronizedMap(new LinkedHashMap<TXId, TXCommitMessage>() {
+        @Override
         protected boolean removeEldestEntry(Entry eldest) {
           return size() > TXManagerImpl.FAILOVER_TX_MAP_SIZE;
         };
@@ -358,5 +360,10 @@ public class TXFarSideCMTracker {
     this.failoverMap.clear();
     this.lastHistoryItem = 0;
     Arrays.fill(this.txHistory, null);
+  }
+
+  @VisibleForTesting
+  public int getFailoverMapSize() {
+    return failoverMap.size();
   }
 }

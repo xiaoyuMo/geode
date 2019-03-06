@@ -15,30 +15,33 @@
 package org.apache.geode.connectors.jdbc.internal.cli;
 
 import static org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand.CREATE_MAPPING;
-import static org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand.CREATE_MAPPING__DATA_SOURCE_NAME;
-import static org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand.CREATE_MAPPING__PDX_NAME;
-import static org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand.CREATE_MAPPING__REGION_NAME;
-import static org.apache.geode.connectors.jdbc.internal.cli.CreateMappingCommand.CREATE_MAPPING__TABLE_NAME;
 import static org.apache.geode.connectors.jdbc.internal.cli.DescribeMappingCommand.DESCRIBE_MAPPING;
-import static org.apache.geode.connectors.jdbc.internal.cli.DescribeMappingCommand.DESCRIBE_MAPPING__REGION_NAME;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.geode.connectors.util.internal.MappingConstants.DATA_SOURCE_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.GROUP_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.ID_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.PDX_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.REGION_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.SCHEMA_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.SYNCHRONOUS_NAME;
+import static org.apache.geode.connectors.util.internal.MappingConstants.TABLE_NAME;
 
 import java.io.Serializable;
-import java.util.Properties;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
+import javax.sql.DataSource;
+
+import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
 
-import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
-import org.apache.geode.connectors.jdbc.internal.RegionMappingExistsException;
-import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
-import org.apache.geode.distributed.internal.DistributionConfig;
-import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.jndi.JNDIInvoker;
 import org.apache.geode.management.internal.cli.util.CommandStringBuilder;
+import org.apache.geode.pdx.PdxReader;
+import org.apache.geode.pdx.PdxSerializable;
+import org.apache.geode.pdx.PdxWriter;
 import org.apache.geode.test.dunit.rules.ClusterStartupRule;
 import org.apache.geode.test.dunit.rules.MemberVM;
 import org.apache.geode.test.junit.assertions.CommandResultAssert;
@@ -47,10 +50,9 @@ import org.apache.geode.test.junit.rules.GfshCommandRule;
 import org.apache.geode.test.junit.rules.serializable.SerializableTestName;
 
 @Category({JDBCConnectorTest.class})
-@RunWith(JUnitParamsRunner.class)
 public class DescribeMappingCommandDUnitTest implements Serializable {
 
-  private static final String REGION_NAME = "testRegion";
+  private static final String TEST_REGION = "testRegion";
 
   @Rule
   public transient GfshCommandRule gfsh = new GfshCommandRule();
@@ -61,7 +63,9 @@ public class DescribeMappingCommandDUnitTest implements Serializable {
   @Rule
   public SerializableTestName testName = new SerializableTestName();
 
-  private MemberVM locator, server;
+  private MemberVM locator;
+  private MemberVM server;
+  private MemberVM server2;
 
   private static String convertRegionPathToName(String regionPath) {
     if (regionPath.startsWith("/")) {
@@ -70,82 +74,452 @@ public class DescribeMappingCommandDUnitTest implements Serializable {
     return regionPath;
   }
 
+  private boolean setupDatabase;
+
+  private void setupDatabase() {
+    setupDatabase = true;
+    gfsh.executeAndAssertThat(
+        "create data-source --name=connection"
+            + " --pooled=false"
+            + " --url=\"jdbc:derby:memory:newDB;create=true\"")
+        .statusIsSuccess();
+    executeSql(server, "connection",
+        "create table mySchema.testTable (myId varchar(10) primary key, name varchar(10))");
+  }
+
+  @After
+  public void after() {
+    teardownDatabase();
+  }
+
+  private void teardownDatabase() {
+    if (setupDatabase) {
+      setupDatabase = false;
+      executeSql(server, "connection", "drop table mySchema.testTable");
+    }
+  }
+
+  private void executeSql(MemberVM targetMember, String dataSource, String sql) {
+    targetMember.invoke(() -> {
+      try {
+        DataSource ds = JNDIInvoker.getDataSource("connection");
+        Connection conn = ds.getConnection();
+        Statement sm = conn.createStatement();
+        sm.execute(sql);
+        sm.close();
+        conn.close();
+      } catch (SQLException e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
+  public static class IdAndName implements PdxSerializable {
+    private String id;
+    private String name;
+
+    public IdAndName() {
+      // nothing
+    }
+
+    IdAndName(String id, String name) {
+      this.id = id;
+      this.name = name;
+    }
+
+    String getId() {
+      return id;
+    }
+
+    String getName() {
+      return name;
+    }
+
+    @Override
+    public void toData(PdxWriter writer) {
+      writer.writeString("myid", this.id);
+      writer.writeString("name", this.name);
+    }
+
+    @Override
+    public void fromData(PdxReader reader) {
+      this.id = reader.readString("myid");
+      this.name = reader.readString("name");
+    }
+  }
+
+  public static class IdAndName2 implements PdxSerializable {
+    private String id;
+    private String name;
+
+    public IdAndName2() {
+      // nothing
+    }
+
+    IdAndName2(String id, String name) {
+      this.id = id;
+      this.name = name;
+    }
+
+    String getId() {
+      return id;
+    }
+
+    String getName() {
+      return name;
+    }
+
+    @Override
+    public void toData(PdxWriter writer) {
+      writer.writeString("myid2", this.id);
+      writer.writeString("name", this.name);
+    }
+
+    @Override
+    public void fromData(PdxReader reader) {
+      this.id = reader.readString("myid2");
+      this.name = reader.readString("name");
+    }
+  }
+
   @Test
-  @Parameters({REGION_NAME, "/" + REGION_NAME})
-  public void describesExistingMapping(String regionName) throws Exception {
+  public void describesExistingSynchronousMapping() throws Exception {
+    String regionName = "/" + TEST_REGION;
     locator = startupRule.startLocatorVM(0);
     server = startupRule.startServerVM(1, locator.getPort());
 
     gfsh.connectAndVerify(locator);
+    setupDatabase();
     gfsh.executeAndAssertThat("create region --name=" + regionName + " --type=REPLICATE")
         .statusIsSuccess();
 
     CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
-    csb.addOption(CREATE_MAPPING__REGION_NAME, regionName);
-    csb.addOption(CREATE_MAPPING__DATA_SOURCE_NAME, "connection");
-    csb.addOption(CREATE_MAPPING__TABLE_NAME, "testTable");
-    csb.addOption(CREATE_MAPPING__PDX_NAME, "myPdxClass");
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "true");
+    csb.addOption(ID_NAME, "myId");
 
     gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
 
-    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(DESCRIBE_MAPPING__REGION_NAME,
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
         regionName);
 
     CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
 
     commandResultAssert.statusIsSuccess();
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__REGION_NAME,
+    commandResultAssert.doesNotContainOutput("Mapping for group");
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
         convertRegionPathToName(regionName));
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__DATA_SOURCE_NAME, "connection");
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__TABLE_NAME, "testTable");
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__PDX_NAME, "myPdxClass");
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "true");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
   }
 
   @Test
-  public void reportsNoMappingFound() throws Exception {
+  public void describesExistingSynchronousMappingWithGroups() throws Exception {
+    String regionName = TEST_REGION;
+    String groupName = "group1";
+    locator = startupRule.startLocatorVM(0);
+    server = startupRule.startServerVM(1, groupName, locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+    setupDatabase();
+    gfsh.executeAndAssertThat(
+        "create region --name=" + regionName + " --type=REPLICATE --group=" + groupName)
+        .statusIsSuccess();
+
+    CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(GROUP_NAME, groupName);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "true");
+    csb.addOption(ID_NAME, "myId");
+
+    gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+        regionName).addOption(GROUP_NAME, groupName);
+
+    CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+    commandResultAssert.statusIsSuccess();
+    commandResultAssert.containsKeyValuePair("Mapping for group", "group1");
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
+        convertRegionPathToName(regionName));
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "true");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
+  }
+
+  @Test
+  public void describesExistingAsyncMapping() throws Exception {
+    String regionName = "/" + TEST_REGION;
+    locator = startupRule.startLocatorVM(0);
+    server = startupRule.startServerVM(1, locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+    setupDatabase();
+    gfsh.executeAndAssertThat("create region --name=" + regionName + " --type=REPLICATE")
+        .statusIsSuccess();
+
+    CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
+
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "false");
+    csb.addOption(ID_NAME, "myId");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+
+    gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+        regionName);
+
+    CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+    commandResultAssert.statusIsSuccess();
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
+        convertRegionPathToName(regionName));
+
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "false");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
+    commandResultAssert.containsKeyValuePair(SCHEMA_NAME, "mySchema");
+  }
+
+  @Test
+  public void describesExistingAsyncMappingWithGroup() throws Exception {
+    String regionName = TEST_REGION;
+    String groupName = "group1";
+    locator = startupRule.startLocatorVM(0);
+    server = startupRule.startServerVM(1, groupName, locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+    setupDatabase();
+    gfsh.executeAndAssertThat(
+        "create region --name=" + regionName + " --type=REPLICATE --group=" + groupName)
+        .statusIsSuccess();
+
+    CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
+
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(GROUP_NAME, groupName);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "false");
+    csb.addOption(ID_NAME, "myId");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+
+    gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+        regionName).addOption(GROUP_NAME, groupName);
+
+    CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+    commandResultAssert.statusIsSuccess();
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
+        convertRegionPathToName(regionName));
+
+    commandResultAssert.containsKeyValuePair("Mapping for group", "group1");
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "false");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
+    commandResultAssert.containsKeyValuePair(SCHEMA_NAME, "mySchema");
+  }
+
+  @Test
+  public void describesExistingAsyncMappingsWithSameRegionOnDifferentGroups()
+      throws Exception {
+    String regionName = "/" + TEST_REGION;
+    String groupName1 = "group1";
+    String groupName2 = "group2";
+    locator = startupRule.startLocatorVM(0);
+    server = startupRule.startServerVM(1, groupName1, locator.getPort());
+    server2 = startupRule.startServerVM(2, groupName2, locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+    setupDatabase();
+    executeSql(server2, "connection",
+        "create table mySchema.testTable (myId varchar(10) primary key, name varchar(10))");
+    gfsh.executeAndAssertThat("create region --name=" + regionName + " --type=REPLICATE --group="
+        + groupName1 + "," + groupName2)
+        .statusIsSuccess();
+
+    CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
+
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(GROUP_NAME, groupName1 + "," + groupName2);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "false");
+    csb.addOption(ID_NAME, "myId");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+
+    try {
+      gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+
+      csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+          regionName).addOption(GROUP_NAME, groupName1 + "," + groupName2);
+
+      CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+      commandResultAssert.statusIsSuccess();
+      commandResultAssert.containsKeyValuePair(REGION_NAME,
+          convertRegionPathToName(regionName));
+
+      commandResultAssert.containsKeyValuePair("Mapping for group", "group1");
+      commandResultAssert.containsKeyValuePair("Mapping for group", "group2");
+      commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+      commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+      commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+      commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "false");
+      commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
+      commandResultAssert.containsKeyValuePair(SCHEMA_NAME, "mySchema");
+    } finally {
+      executeSql(server2, "connection", "drop table mySchema.testTable");
+    }
+  }
+
+  @Test
+  public void describesExistingAsyncMappingsWithSameRegionOnDifferentGroupsWithDifferentMappings()
+      throws Exception {
+    String regionName = TEST_REGION;
+    String groupName1 = "group1";
+    String groupName2 = "group2";
+    locator = startupRule.startLocatorVM(0);
+    server = startupRule.startServerVM(1, groupName1, locator.getPort());
+    server2 = startupRule.startServerVM(2, groupName2, locator.getPort());
+
+    gfsh.connectAndVerify(locator);
+    setupDatabase();
+    gfsh.executeAndAssertThat("create region --name=" + regionName + " --type=REPLICATE --group="
+        + groupName1 + "," + groupName2)
+        .statusIsSuccess();
+
+    CommandStringBuilder csb = new CommandStringBuilder(CREATE_MAPPING);
+
+    csb.addOption(REGION_NAME, regionName);
+    csb.addOption(GROUP_NAME, groupName1);
+    csb.addOption(DATA_SOURCE_NAME, "connection");
+    csb.addOption(TABLE_NAME, "testTable");
+    csb.addOption(PDX_NAME, IdAndName.class.getName());
+    csb.addOption(SYNCHRONOUS_NAME, "false");
+    csb.addOption(ID_NAME, "myId");
+    csb.addOption(SCHEMA_NAME, "mySchema");
+
+    gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+
+    gfsh.executeAndAssertThat(
+        "create data-source --name=connection2"
+            + " --pooled=false"
+            + " --url=\"jdbc:derby:memory:newDB;create=true\"")
+        .statusIsSuccess();
+    executeSql(server2, "connection2",
+        "create table mySchema2.testTable2 (myId2 varchar(10) primary key, name varchar(10))");
+    try {
+      csb = new CommandStringBuilder(CREATE_MAPPING);
+
+      csb.addOption(REGION_NAME, regionName);
+      csb.addOption(GROUP_NAME, groupName2);
+      csb.addOption(DATA_SOURCE_NAME, "connection2");
+      csb.addOption(TABLE_NAME, "testTable2");
+      csb.addOption(PDX_NAME, IdAndName2.class.getName());
+      csb.addOption(SYNCHRONOUS_NAME, "false");
+      csb.addOption(ID_NAME, "myId2");
+      csb.addOption(SCHEMA_NAME, "mySchema2");
+
+      gfsh.executeAndAssertThat(csb.toString()).statusIsSuccess();
+    } finally {
+      executeSql(server2, "connection2", "drop table mySchema2.testTable2");
+    }
+
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+        regionName).addOption(GROUP_NAME, groupName1);
+
+    CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+    commandResultAssert.statusIsSuccess();
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
+        convertRegionPathToName(regionName));
+
+    commandResultAssert.containsKeyValuePair("Mapping for group", "group1");
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "false");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId");
+    commandResultAssert.containsKeyValuePair(SCHEMA_NAME, "mySchema");
+
+    csb = new CommandStringBuilder(DESCRIBE_MAPPING).addOption(REGION_NAME,
+        regionName).addOption(GROUP_NAME, groupName2);
+
+    commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
+
+    commandResultAssert.statusIsSuccess();
+    commandResultAssert.containsKeyValuePair(REGION_NAME,
+        convertRegionPathToName(regionName));
+
+    commandResultAssert.containsKeyValuePair("Mapping for group", "group2");
+    commandResultAssert.containsKeyValuePair(DATA_SOURCE_NAME, "connection2");
+    commandResultAssert.containsKeyValuePair(TABLE_NAME, "testTable2");
+    commandResultAssert.containsKeyValuePair(PDX_NAME, IdAndName2.class.getName());
+    commandResultAssert.containsKeyValuePair(SYNCHRONOUS_NAME, "false");
+    commandResultAssert.containsKeyValuePair(ID_NAME, "myId2");
+    commandResultAssert.containsKeyValuePair(SCHEMA_NAME, "mySchema2");
+  }
+
+  @Test
+  public void reportsNoRegionFound() throws Exception {
     locator = startupRule.startLocatorVM(0);
     server = startupRule.startServerVM(1, locator.getPort());
     gfsh.connectAndVerify(locator);
-    gfsh.executeAndAssertThat("create region --name=" + REGION_NAME + " --type=REPLICATE")
+    gfsh.executeAndAssertThat("create region --name=" + TEST_REGION + " --type=REPLICATE")
         .statusIsSuccess();
 
     CommandStringBuilder csb = new CommandStringBuilder(DESCRIBE_MAPPING)
-        .addOption(DESCRIBE_MAPPING__REGION_NAME, "nonExisting");
+        .addOption(REGION_NAME, "nonExisting");
 
     CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
 
     commandResultAssert.statusIsError();
     commandResultAssert.containsOutput(
-        String.format("(Experimental) \n" + "JDBC mapping for region 'nonExisting' not found"));
+        String.format("A region named nonExisting must already exist."));
   }
 
   @Test
-  public void reportConfigurationFoundOnMember() throws Exception {
-    Properties properties = new Properties();
-    properties.put(DistributionConfig.ENABLE_CLUSTER_CONFIGURATION_NAME, "false");
-
-    locator = startupRule.startLocatorVM(0, properties);
+  public void reportsRegionButNoMappingFound() throws Exception {
+    locator = startupRule.startLocatorVM(0);
     server = startupRule.startServerVM(1, locator.getPort());
     gfsh.connectAndVerify(locator);
-    gfsh.executeAndAssertThat("create region --name=" + REGION_NAME + " --type=REPLICATE")
+    gfsh.executeAndAssertThat("create region --name=" + TEST_REGION + " --type=REPLICATE")
         .statusIsSuccess();
 
-    server.invoke(() -> createRegionMapping());
+    CommandStringBuilder csb = new CommandStringBuilder(DESCRIBE_MAPPING)
+        .addOption(REGION_NAME, TEST_REGION);
 
-    CommandResultAssert commandResultAssert =
-        gfsh.executeAndAssertThat(DESCRIBE_MAPPING + " --region=" + REGION_NAME).statusIsSuccess();
+    CommandResultAssert commandResultAssert = gfsh.executeAndAssertThat(csb.toString());
 
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__REGION_NAME, REGION_NAME);
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__DATA_SOURCE_NAME, "connection");
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__TABLE_NAME, "testTable");
-    commandResultAssert.containsKeyValuePair(CREATE_MAPPING__PDX_NAME, "myPdxClass");
-  }
-
-  private void createRegionMapping() throws RegionMappingExistsException {
-    InternalCache cache = ClusterStartupRule.getCache();
-    JdbcConnectorService service = cache.getService(JdbcConnectorService.class);
-    service.createRegionMapping(new RegionMapping(REGION_NAME, "myPdxClass",
-        "testTable", "connection"));
-    assertThat(service.getMappingForRegion(REGION_NAME)).isNotNull();
+    commandResultAssert.statusIsError();
+    commandResultAssert.containsOutput(
+        String.format("JDBC mapping for region '" + TEST_REGION + "' not found"));
   }
 }

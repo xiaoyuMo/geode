@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.ToDataException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.client.NoAvailableLocatorsException;
 import org.apache.geode.cache.client.internal.PoolImpl.PoolTask;
 import org.apache.geode.cache.client.internal.locator.ClientConnectionRequest;
@@ -65,9 +66,13 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
 
   private TcpClient tcpClient;
 
+  @Immutable
   protected static final LocatorListRequest LOCATOR_LIST_REQUEST = new LocatorListRequest();
+
+  @Immutable
   private static final Comparator<HostAddress> SOCKET_ADDRESS_COMPARATOR =
       new Comparator<HostAddress>() {
+        @Override
         public int compare(HostAddress address, HostAddress otherAddress) {
           InetSocketAddress inetSocketAddress = address.getSocketInetAddress();
           InetSocketAddress otherInetSocketAddress = otherAddress.getSocketInetAddress();
@@ -114,6 +119,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     this.tcpClient = new TcpClient();
   }
 
+  @Override
   public boolean isBalanced() {
     return isBalanced;
   }
@@ -132,6 +138,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     }
   }
 
+  @Override
   public ServerLocation findReplacementServer(ServerLocation currentServer,
       Set/* <ServerLocation> */ excludedServers) {
     if (PoolImpl.TEST_DURABLE_IS_NET_DOWN) {
@@ -147,6 +154,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     return response.getServer();
   }
 
+  @Override
   public ServerLocation findServer(Set excludedServers) {
     if (PoolImpl.TEST_DURABLE_IS_NET_DOWN) {
       return null;
@@ -160,6 +168,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     return response.getServer();
   }
 
+  @Override
   public List/* ServerLocation */ findServersForQueue(Set/* <ServerLocation> */ excludedServers,
       int numServers, ClientProxyMembershipID proxyId, boolean findDurableQueue) {
     if (PoolImpl.TEST_DURABLE_IS_NET_DOWN) {
@@ -361,6 +370,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     }
   }
 
+  @Override
   public void start(InternalPool pool) {
     this.pool = pool;
     pool.getStats().setInitialContacts(((LocatorList) locators.get()).size());
@@ -375,6 +385,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
     }
   }
 
+  @Override
   public void stop() {
 
   }
@@ -455,10 +466,12 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
       private int startLocator = currentLocatorIndex.get();
       private int locatorNum = 0;
 
+      @Override
       public boolean hasNext() {
         return locatorNum < locators.size();
       }
 
+      @Override
       public HostAddress next() {
         if (!hasNext()) {
           return null;
@@ -471,6 +484,7 @@ public class AutoConnectionSourceImpl implements ConnectionSource {
         }
       }
 
+      @Override
       public void remove() {
         throw new UnsupportedOperationException();
       }

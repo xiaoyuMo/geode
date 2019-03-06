@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
@@ -294,7 +295,8 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
 
   }
 
-  private static Version[] serializationVersions = new Version[] {Version.GFE_80};
+  @Immutable
+  private static final Version[] serializationVersions = new Version[] {Version.GFE_80};
 
   @Override
   public Version[] getSerializationVersions() {
@@ -555,10 +557,12 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
     this.objects.add(value);
   }
 
+  @Override
   public void writeExternal(ObjectOutput out) throws IOException {
     toData(out);
   }
 
+  @Override
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
     fromData(in);
   }
@@ -600,6 +604,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
       this.index = idx;
     }
 
+    @Override
     public Object getKey() {
       if (hasKeys) {
         return keys.get(index);
@@ -639,6 +644,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
      *
      * @see java.util.Map.Entry#getValue()
      */
+    @Override
     public Object getValue() {
       if (index < objects.size()) {
         return objects.get(index);
@@ -652,6 +658,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
      *
      * @see java.util.Map.Entry#setValue(java.lang.Object)
      */
+    @Override
     public Object setValue(Object value) {
       Object result = objects.get(index);
       objects.set(index, value);
@@ -678,6 +685,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
      *
      * @see java.util.Iterator#hasNext()
      */
+    @Override
     public boolean hasNext() {
       return index < size;
     }
@@ -687,6 +695,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
      *
      * @see java.util.Iterator#next()
      */
+    @Override
     public Entry next() {
       return new Entry(index++);
     }
@@ -696,6 +705,7 @@ public class VersionedObjectList extends ObjectPartList implements Externalizabl
      *
      * @see java.util.Iterator#remove()
      */
+    @Override
     public void remove() {
       throw new UnsupportedOperationException();
     }

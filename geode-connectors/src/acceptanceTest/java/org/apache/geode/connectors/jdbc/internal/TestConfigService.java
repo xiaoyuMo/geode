@@ -17,6 +17,9 @@ package org.apache.geode.connectors.jdbc.internal;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
+import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.extension.ExtensionPoint;
@@ -29,18 +32,21 @@ public class TestConfigService {
   private static final String REGION_NAME = "employees";
   private static final String CONNECTION_CONFIG_NAME = "testConnectionConfig";
 
-  public static JdbcConnectorServiceImpl getTestConfigService(String connectionUrl)
+  public static JdbcConnectorServiceImpl getTestConfigService(String ids,
+      List<FieldMapping> fieldMappings)
       throws RegionMappingExistsException {
-    return getTestConfigService(createMockCache(), null, connectionUrl);
+    return getTestConfigService(createMockCache(), null, ids, null, null, fieldMappings);
   }
 
   public static JdbcConnectorServiceImpl getTestConfigService(InternalCache cache,
-      String pdxClassName, String connectionUrl)
+      String pdxClassName, String ids, String catalog, String schema,
+      List<FieldMapping> fieldMappings)
       throws RegionMappingExistsException {
 
     JdbcConnectorServiceImpl service = new JdbcConnectorServiceImpl();
     service.init(cache);
-    service.createRegionMapping(createRegionMapping(pdxClassName));
+    service.createRegionMapping(
+        createRegionMapping(pdxClassName, ids, catalog, schema, fieldMappings));
     return service;
   }
 
@@ -50,8 +56,13 @@ public class TestConfigService {
     return cache;
   }
 
-  private static RegionMapping createRegionMapping(String pdxClassName) {
-    return new RegionMapping(REGION_NAME, pdxClassName, REGION_TABLE_NAME,
-        CONNECTION_CONFIG_NAME);
+  private static RegionMapping createRegionMapping(String pdxClassName, String ids, String catalog,
+      String schema, List<FieldMapping> fieldMappings) {
+    RegionMapping result = new RegionMapping(REGION_NAME, pdxClassName, REGION_TABLE_NAME,
+        CONNECTION_CONFIG_NAME, ids, catalog, schema);
+    for (FieldMapping fieldMapping : fieldMappings) {
+      result.addFieldMapping(fieldMapping);
+    }
+    return result;
   }
 }

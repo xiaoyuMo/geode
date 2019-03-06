@@ -37,6 +37,9 @@ import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.EntryEvent;
 import org.apache.geode.cache.Operation;
@@ -106,7 +109,8 @@ public class FilterProfile implements DataSerializableFixedID {
   /**
    * these booleans tell whether the associated operationType pertains to CQs or not
    */
-  static boolean[] isCQOperation =
+  @Immutable
+  private static final boolean[] isCQOperation =
       {false, false, false, false, false, false, false, false, false, true, true, true, true, true};
 
   /**
@@ -942,6 +946,9 @@ public class FilterProfile implements DataSerializableFixedID {
         this.closeCq(cq);
       }
     }
+
+    // Remove the client from the clientMap
+    this.clientMap.removeIDMapping(client);
   }
 
   /**
@@ -1028,6 +1035,7 @@ public class FilterProfile implements DataSerializableFixedID {
     }
   }
 
+  @Immutable
   static final Profile[] NO_PROFILES = new Profile[0];
 
   private final CacheProfile localProfile = new CacheProfile(this);
@@ -1468,6 +1476,7 @@ public class FilterProfile implements DataSerializableFixedID {
   }
 
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     InternalDistributedMember id = new InternalDistributedMember();
     InternalDataSerializer.invokeFromData(id, in);
@@ -1505,10 +1514,12 @@ public class FilterProfile implements DataSerializableFixedID {
 
   }
 
+  @Override
   public int getDSFID() {
     return FILTER_PROFILE;
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     InternalDataSerializer.invokeToData(memberID, out);
     InternalDataSerializer.writeSetOfLongs(this.allKeyClients.getSnapshot(),
@@ -1699,6 +1710,28 @@ public class FilterProfile implements DataSerializableFixedID {
    */
   public String getRealCqID(Long integerID) {
     return (String) cqMap.getRealID(integerID);
+  }
+
+  /**
+   * Return the set of real client proxy ids
+   *
+   * @return the set of real client proxy ids
+   */
+  @VisibleForTesting
+  public Set getRealClientIds() {
+    return clientMap == null ? Collections.emptySet()
+        : Collections.unmodifiableSet(clientMap.realIDs.keySet());
+  }
+
+  /**
+   * Return the set of wire client proxy ids
+   *
+   * @return the set of wire client proxy ids
+   */
+  @VisibleForTesting
+  public Set getWireClientIds() {
+    return clientMap == null ? Collections.emptySet()
+        : Collections.unmodifiableSet(clientMap.wireIDs.keySet());
   }
 
   /**
@@ -1943,6 +1976,7 @@ public class FilterProfile implements DataSerializableFixedID {
      *
      * @see org.apache.geode.internal.DataSerializableFixedID#getDSFID()
      */
+    @Override
     public int getDSFID() {
       return FILTER_PROFILE_UPDATE;
     }
@@ -2070,6 +2104,15 @@ public class FilterProfile implements DataSerializableFixedID {
       }
     }
 
+    /**
+     * remove the mapping for the given proxy ID
+     */
+    void removeIDMapping(Object clientId) {
+      Long mappedId = this.realIDs.remove(clientId);
+      if (mappedId != null) {
+        this.wireIDs.remove(mappedId);
+      }
+    }
   }
 
   /**
@@ -2209,6 +2252,7 @@ public class FilterProfile implements DataSerializableFixedID {
     return null;
   }
 
+  @MutableForTesting
   public static TestHook testHook = null;
 
   /** Test Hook */

@@ -16,53 +16,98 @@
  */
 package org.apache.geode.connectors.jdbc.internal;
 
-import java.util.HashMap;
+import java.sql.JDBCType;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TableMetaData implements TableMetaDataView {
 
-  private final String tableName;
-  private final String keyColumnName;
-  private final HashMap<String, Integer> columnNameToTypeMap;
+  private final String quotedTablePath;
+  private final List<String> keyColumnNames;
+  private final Map<String, ColumnMetaData> columnMetaDataMap;
   private final String identifierQuoteString;
 
-  public TableMetaData(String tableName, String keyColumnName, String quoteString) {
-    this.tableName = tableName;
-    this.keyColumnName = keyColumnName;
-    this.columnNameToTypeMap = new HashMap<>();
+  public TableMetaData(String catalogName, String schemaName, String tableName,
+      List<String> keyColumnNames, String quoteString,
+      Map<String, ColumnMetaData> columnMetaDataMap) {
+    if (quoteString == null) {
+      quoteString = "";
+    }
+    this.quotedTablePath = createQuotedTablePath(catalogName, schemaName, tableName, quoteString);
+    this.keyColumnNames = keyColumnNames;
+    this.columnMetaDataMap = columnMetaDataMap;
     this.identifierQuoteString = quoteString;
   }
 
-  @Override
-  public String getTableName() {
-    return tableName;
+  private static String createQuotedTablePath(String catalogName, String schemaName,
+      String tableName, String quote) {
+    StringBuilder builder = new StringBuilder();
+    appendPrefix(builder, catalogName, quote);
+    appendPrefix(builder, schemaName, quote);
+    builder.append(quote).append(tableName).append(quote);
+    return builder.toString();
   }
 
-  @Override
-  public String getKeyColumnName() {
-    return this.keyColumnName;
-  }
-
-  @Override
-  public int getColumnDataType(String columnName) {
-    Integer dataType = this.columnNameToTypeMap.get(columnName);
-    if (dataType == null) {
-      return 0;
+  private static void appendPrefix(StringBuilder builder, String prefix, String quote) {
+    if (prefix != null && !prefix.isEmpty()) {
+      builder.append(quote).append(prefix).append(quote).append('.');
     }
-    return dataType;
+  }
+
+  @Override
+  public String getQuotedTablePath() {
+    return quotedTablePath;
+  }
+
+  @Override
+  public List<String> getKeyColumnNames() {
+    return this.keyColumnNames;
+  }
+
+  @Override
+  public JDBCType getColumnDataType(String columnName) {
+    ColumnMetaData columnMetaData = this.columnMetaDataMap.get(columnName);
+    if (columnMetaData == null) {
+      return JDBCType.NULL;
+    }
+    return columnMetaData.getType();
+  }
+
+  @Override
+  public boolean isColumnNullable(String columnName) {
+    ColumnMetaData columnMetaData = this.columnMetaDataMap.get(columnName);
+    if (columnMetaData == null) {
+      return true;
+    }
+    return columnMetaData.isNullable();
   }
 
   @Override
   public Set<String> getColumnNames() {
-    return columnNameToTypeMap.keySet();
-  }
-
-  public void addDataType(String columnName, int dataType) {
-    this.columnNameToTypeMap.put(columnName, dataType);
+    return columnMetaDataMap.keySet();
   }
 
   @Override
   public String getIdentifierQuoteString() {
     return this.identifierQuoteString;
+  }
+
+  public static class ColumnMetaData {
+    private final JDBCType type;
+    private final boolean nullable;
+
+    public ColumnMetaData(JDBCType type, boolean nullable) {
+      this.type = type;
+      this.nullable = nullable;
+    }
+
+    public JDBCType getType() {
+      return this.type;
+    }
+
+    public boolean isNullable() {
+      return this.nullable;
+    }
   }
 }

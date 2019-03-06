@@ -94,6 +94,11 @@ public class DUnitLauncher {
   public static int NUM_VMS = 4;
 
   /**
+   * VM ID for the VM to use for the debugger.
+   */
+  static final int DEBUGGING_VM_NUM = -1;
+
+  /**
    * VM ID for the VM to use for the locator.
    */
   static final int LOCATOR_VM_NUM = -2;
@@ -117,6 +122,8 @@ public class DUnitLauncher {
   public static final String VM_VERSION_PARAM = GEMFIRE_PREFIX + "DUnitLauncher.VM_VERSION";
 
   private static final String LAUNCHED_PROPERTY = GEMFIRE_PREFIX + "DUnitLauncher.LAUNCHED";
+
+  private static final VMEventNotifier vmEventNotifier = new VMEventNotifier();
 
   private static Master master;
 
@@ -223,9 +230,9 @@ public class DUnitLauncher {
 
     // populate the Host class with our stubs. The tests use this host class
     DUnitHost host =
-        new DUnitHost(InetAddress.getLocalHost().getCanonicalHostName(), processManager);
+        new DUnitHost(InetAddress.getLocalHost().getCanonicalHostName(), processManager,
+            vmEventNotifier);
     host.init(registry, NUM_VMS);
-
   }
 
   public static Properties getDistributedSystemProperties() {
@@ -271,6 +278,7 @@ public class DUnitLauncher {
     final File locatorLogFile =
         LOCATOR_LOG_TO_DISK ? new File("locator-" + locatorPort + ".log") : new File("");
     MethodInvokerResult result = remote.executeMethodOnObject(new SerializableCallable() {
+      @Override
       public Object call() throws IOException {
         Properties p = getDistributedSystemProperties();
         // I never want this locator to end up starting a jmx manager

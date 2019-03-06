@@ -25,7 +25,6 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -99,7 +98,6 @@ public class SimpleStatSamplerIntegrationTest extends StatSamplerTestCase {
 
     assertTrue(statsCount > 0);
 
-    Assert.assertEquals(getStatisticsManager().getId(), statSampler.getSystemId());
     assertTrue(statSampler.getSystemStartTime() <= System.currentTimeMillis());
     assertEquals(SocketCreator.getHostName(SocketCreator.getLocalHost()),
         statSampler.getSystemDirectoryPath());
@@ -335,10 +333,12 @@ public class SimpleStatSamplerIntegrationTest extends StatSamplerTestCase {
 
   private void initStatisticsFactory() {
     CancelCriterion stopper = new CancelCriterion() {
+      @Override
       public String cancelInProgress() {
         return null;
       }
 
+      @Override
       public RuntimeException generateCancelledException(Throwable e) {
         return null;
       }

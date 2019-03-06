@@ -15,13 +15,12 @@
  */
 package org.apache.geode.test.dunit.rules;
 
+import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast;
 import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
-import static org.apache.geode.test.awaitility.GeodeAwaitility.await;
 import static org.apache.geode.test.dunit.Host.getHost;
 import static org.apache.geode.test.dunit.internal.DUnitLauncher.NUM_VMS;
 
 import java.io.File;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -31,17 +30,18 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.rules.ExternalResource;
+import org.apache.commons.lang3.JavaVersion;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import org.apache.geode.cache.client.ClientCache;
 import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.server.CacheServer;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.distributed.internal.InternalLocator;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.test.dunit.DUnitEnv;
 import org.apache.geode.test.dunit.Host;
-import org.apache.geode.test.dunit.RMIException;
+import org.apache.geode.test.dunit.IgnoredException;
 import org.apache.geode.test.dunit.SerializableConsumerIF;
 import org.apache.geode.test.dunit.VM;
 import org.apache.geode.test.dunit.internal.DUnitLauncher;
@@ -53,6 +53,7 @@ import org.apache.geode.test.junit.rules.MemberStarterRule;
 import org.apache.geode.test.junit.rules.Server;
 import org.apache.geode.test.junit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.rules.VMProvider;
+import org.apache.geode.test.junit.rules.serializable.SerializableTestRule;
 import org.apache.geode.test.version.VersionManager;
 
 /**
@@ -66,12 +67,14 @@ import org.apache.geode.test.version.VersionManager;
  * If you use this Rule in any test that uses more than the default of 4 VMs in DUnit, then
  * you must specify the total number of VMs via the {@link #ClusterStartupRule(int)} constructor.
  */
-public class ClusterStartupRule extends ExternalResource implements Serializable {
+public class ClusterStartupRule implements SerializableTestRule {
   /**
    * This is only available in each Locator/Server VM, not in the controller (test) VM.
    */
   public static MemberStarterRule<?> memberStarter;
   public static ClientCacheRule clientCacheRule;
+
+  private boolean skipLocalDistributedSystemCleanup;
 
   public static InternalCache getCache() {
     if (memberStarter == null) {
@@ -134,19 +137,38 @@ public class ClusterStartupRule extends ExternalResource implements Serializable
   }
 
   @Override
-  protected void before() throws Throwable {
+  public Statement apply(Statement base, Description description) {
+    return new Statement() {
+      @Override
+      public void evaluate() throws Throwable {
+        before(description);
+        try {
+          base.evaluate();
+        } finally {
+          after(description);
+        }
+      }
+    };
+  }
+
+  private void before(Description description) throws Throwable {
+    if (isJavaVersionAtLeast(JavaVersion.JAVA_11)) {
+      // GEODE-6247: JDK 11 has an issue where native code is reporting committed is 2MB > max.
+      IgnoredException.addIgnoredException("committed = 538968064 should be < max = 536870912");
+    }
     DUnitLauncher.launchIfNeeded();
     for (int i = 0; i < vmCount; i++) {
       Host.getHost(0).getVM(i);
     }
-    restoreSystemProperties.before();
+    restoreSystemProperties.beforeDistributedTest(description);
     occupiedVMs = new HashMap<>();
   }
 
-  @Override
-  protected void after() {
+  private void after(Description description) throws Throwable {
 
-    MemberStarterRule.disconnectDSIfAny();
+    if (!skipLocalDistributedSystemCleanup) {
+      MemberStarterRule.disconnectDSIfAny();
+    }
 
     // stop all the members in the order of clients, servers and locators
     List<VMProvider> vms = new ArrayList<>();
@@ -162,12 +184,25 @@ public class ClusterStartupRule extends ExternalResource implements Serializable
     Arrays.stream(getWorkingDirRoot().listFiles()).filter(File::isFile)
         .forEach(FileUtils::deleteQuietly);
 
-    restoreSystemProperties.after();
+    restoreSystemProperties.afterDistributedTest(description);
 
     // close suspect string at the end of tear down
     // any background thread can fill the dunit_suspect.log
     // after its been truncated if we do it before closing cache
     DUnitLauncher.closeAndCheckForSuspects();
+  }
+
+  public boolean isSkipLocalDistributedSystemCleanup() {
+    return skipLocalDistributedSystemCleanup;
+  }
+
+  /**
+   * In some weird situations you may not want to do local DS cleanup as that lifecyle is deferred
+   * elsewhere - see {@code LocatorCleanupEventListener} and any test that uses {@code
+   * PlainLocatorContextLoader} or {@code LocatorWithSecurityManagerContextLoader}
+   */
+  public void setSkipLocalDistributedSystemCleanup(boolean skipLocalDistributedSystemCleanup) {
+    this.skipLocalDistributedSystemCleanup = skipLocalDistributedSystemCleanup;
   }
 
   public MemberVM startLocatorVM(int index, int... locatorPort) {
@@ -232,7 +267,7 @@ public class ClusterStartupRule extends ExternalResource implements Serializable
       SerializableFunction<ServerStarterRule> ruleOperator) {
     final String defaultName = "server-" + index;
     VM serverVM = getVM(index, version);
-    Server server = serverVM.invoke(() -> {
+    Server server = serverVM.invoke("startServerVM", () -> {
       memberStarter = new ServerStarterRule();
       ServerStarterRule serverStarter = (ServerStarterRule) memberStarter;
       if (logFile) {
@@ -308,8 +343,8 @@ public class ClusterStartupRule extends ExternalResource implements Serializable
   /**
    * gracefully stop the member/client inside this vm
    *
-   * if this vm is a server/locator, it stops them and cleans the working dir
-   * if this vm is a client, it closes the client cache.
+   * if this vm is a server/locator, it stops them and cleans the working dir if this vm is a
+   * client, it closes the client cache.
    *
    * @param index vm index
    */
@@ -322,34 +357,11 @@ public class ClusterStartupRule extends ExternalResource implements Serializable
   }
 
   /**
-   * this crashes the VM hosting the member/client. It removes the VM from the occupied VM list
-   * so that we can ignore it at cleanup.
+   * this crashes the VM hosting the member/client.
    */
   public void crashVM(int index) {
-    VMProvider member = occupiedVMs.remove(index);
-    member.invokeAsync(() -> {
-      if (InternalDistributedSystem.shutdownHook != null) {
-        Runtime.getRuntime().removeShutdownHook(InternalDistributedSystem.shutdownHook);
-      }
-      System.exit(1);
-    });
-
-    // wait till member is not reachable anymore.
-    await().until(() -> {
-      try {
-        member.invoke(() -> {
-        });
-      } catch (RMIException e) {
-        return true;
-      }
-      return false;
-    });
-
-    // delete the lingering files under this vm
-    Arrays.stream(member.getVM().getWorkingDirectory().listFiles())
-        .forEach(FileUtils::deleteQuietly);
-
-    member.getVM().bounce();
+    VMProvider member = occupiedVMs.get(index);
+    member.getVM().bounceForcibly();
   }
 
   public File getWorkingDirRoot() {

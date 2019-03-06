@@ -132,11 +132,11 @@ import org.apache.geode.internal.AvailablePort;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.admin.remote.DistributionLocatorId;
 import org.apache.geode.internal.cache.BucketRegion;
-import org.apache.geode.internal.cache.CacheConfig;
 import org.apache.geode.internal.cache.CacheServerImpl;
 import org.apache.geode.internal.cache.CustomerIDPartitionResolver;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.InternalCacheBuilder;
 import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 import org.apache.geode.internal.cache.RegionQueue;
@@ -983,10 +983,12 @@ public class WANTestBase extends DistributedTestCase {
     props.setProperty(MCAST_PORT, "0");
     props.setProperty(LOCATORS, "localhost[" + locPort + "]");
     InternalDistributedSystem ds = test.getSystem(props);
-    CacheConfig cacheConfig = new CacheConfig();
-    cacheConfig.setPdxPersistent(true);
-    cacheConfig.setPdxDiskStore("PDX_TEST");
-    cache = GemFireCacheImpl.create(ds, false, cacheConfig);
+
+    cache = new InternalCacheBuilder(props)
+        .setPdxPersistent(true)
+        .setPdxDiskStore("PDX_TEST")
+        .setIsExistingOk(false)
+        .create(ds);
 
     File pdxDir = new File(CacheTestCase.getDiskDir(), "pdx");
     DiskStoreFactory dsf = cache.createDiskStoreFactory();
@@ -1679,7 +1681,7 @@ public class WANTestBase extends DistributedTestCase {
   public static GatewaySenderFactory configureGateway(DiskStoreFactory dsf, File[] dirs1,
       String dsName, boolean isParallel, Integer maxMemory, Integer batchSize, boolean isConflation,
       boolean isPersistent, GatewayEventFilter filter, boolean isManualStart, int numDispatchers,
-      OrderPolicy policy) {
+      OrderPolicy policy, int socketBufferSize) {
 
     InternalGatewaySenderFactory gateway =
         (InternalGatewaySenderFactory) cache.createGatewaySenderFactory();
@@ -1691,6 +1693,7 @@ public class WANTestBase extends DistributedTestCase {
     gateway.setDispatcherThreads(numDispatchers);
     gateway.setOrderPolicy(policy);
     gateway.setLocatorDiscoveryCallback(new MyLocatorCallback());
+    gateway.setSocketBufferSize(socketBufferSize);
     if (filter != null) {
       eventFilter = filter;
       gateway.addGatewayEventFilter(filter);
@@ -1717,7 +1720,8 @@ public class WANTestBase extends DistributedTestCase {
       File[] dirs1 = new File[] {persistentDirectory};
       GatewaySenderFactory gateway = configureGateway(dsf, dirs1, dsName, isParallel, maxMemory,
           batchSize, isConflation, isPersistent, filter, isManualStart,
-          numDispatcherThreadsForTheRun, GatewaySender.DEFAULT_ORDER_POLICY);
+          numDispatcherThreadsForTheRun, GatewaySender.DEFAULT_ORDER_POLICY,
+          GatewaySender.DEFAULT_SOCKET_BUFFER_SIZE);
       gateway.create(dsName, remoteDsId);
 
     } finally {
@@ -1729,6 +1733,16 @@ public class WANTestBase extends DistributedTestCase {
       boolean isParallel, Integer maxMemory, Integer batchSize, boolean isConflation,
       boolean isPersistent, GatewayEventFilter filter, boolean isManualStart, int numDispatchers,
       OrderPolicy orderPolicy) {
+    createSenderWithMultipleDispatchers(dsName, remoteDsId,
+        isParallel, maxMemory, batchSize, isConflation,
+        isPersistent, filter, isManualStart, numDispatchers,
+        orderPolicy, GatewaySender.DEFAULT_SOCKET_BUFFER_SIZE);
+  }
+
+  public static void createSenderWithMultipleDispatchers(String dsName, int remoteDsId,
+      boolean isParallel, Integer maxMemory, Integer batchSize, boolean isConflation,
+      boolean isPersistent, GatewayEventFilter filter, boolean isManualStart, int numDispatchers,
+      OrderPolicy orderPolicy, int socketBufferSize) {
     final IgnoredException exln = IgnoredException.addIgnoredException("Could not connect");
     try {
       File persistentDirectory =
@@ -1738,7 +1752,7 @@ public class WANTestBase extends DistributedTestCase {
       File[] dirs1 = new File[] {persistentDirectory};
       GatewaySenderFactory gateway =
           configureGateway(dsf, dirs1, dsName, isParallel, maxMemory, batchSize, isConflation,
-              isPersistent, filter, isManualStart, numDispatchers, orderPolicy);
+              isPersistent, filter, isManualStart, numDispatchers, orderPolicy, socketBufferSize);
       gateway.create(dsName, remoteDsId);
 
     } finally {
@@ -1770,7 +1784,8 @@ public class WANTestBase extends DistributedTestCase {
     DiskStoreFactory dsf = cache.createDiskStoreFactory();
     File[] dirs1 = new File[] {persistentDirectory};
     GatewaySenderFactory gateway = configureGateway(dsf, dirs1, dsName, isParallel, maxMemory,
-        batchSize, isConflation, isPersistent, filter, isManualStart, concurrencyLevel, policy);
+        batchSize, isConflation, isPersistent, filter, isManualStart, concurrencyLevel, policy,
+        GatewaySender.DEFAULT_SOCKET_BUFFER_SIZE);
     gateway.create(dsName, remoteDsId);
   }
 
@@ -2156,11 +2171,14 @@ public class WANTestBase extends DistributedTestCase {
     props.setProperty(MCAST_PORT, "0");
     props.setProperty(LOCATORS, "localhost[" + locPort + "]");
     InternalDistributedSystem ds = test.getSystem(props);
-    CacheConfig cacheConfig = new CacheConfig();
     File pdxDir = new File(CacheTestCase.getDiskDir(), "pdx");
-    cacheConfig.setPdxPersistent(true);
-    cacheConfig.setPdxDiskStore("pdxStore");
-    cache = GemFireCacheImpl.create(ds, false, cacheConfig);
+
+    cache = new InternalCacheBuilder(props)
+        .setPdxPersistent(true)
+        .setPdxDiskStore("pdxStore")
+        .setIsExistingOk(false)
+        .create(ds);
+
     cache.createDiskStoreFactory().setDiskDirs(new File[] {pdxDir}).setMaxOplogSize(1)
         .create("pdxStore");
     GatewayReceiverFactory fact = cache.createGatewayReceiverFactory();
@@ -2684,6 +2702,7 @@ public class WANTestBase extends DistributedTestCase {
     final ExecutorService execService = Executors.newFixedThreadPool(5, new ThreadFactory() {
       AtomicInteger threadNum = new AtomicInteger();
 
+      @Override
       public Thread newThread(final Runnable r) {
         Thread result = new Thread(r, "Client Put Thread-" + threadNum.incrementAndGet());
         result.setDaemon(true);
@@ -2815,7 +2834,6 @@ public class WANTestBase extends DistributedTestCase {
     });
     for (int i = 0; i < regionSize; i++) {
       final int temp = i;
-      logger.info("For Key : Key_" + i + " : Values : " + r.get("Key_" + i));
       await()
           .untilAsserted(() -> assertEquals(
               "keySet = " + r.keySet() + " values() = " + r.values() + "Region Size = " + r.size(),
@@ -2866,6 +2884,7 @@ public class WANTestBase extends DistributedTestCase {
       int sameRegionSizeCounter = 0;
       long previousSize = -1;
 
+      @Override
       public boolean done() {
         if (r.keySet().size() == previousSize) {
           sameRegionSizeCounter++;
@@ -2886,6 +2905,7 @@ public class WANTestBase extends DistributedTestCase {
         }
       }
 
+      @Override
       public String description() {
         return "Expected region size to remain same below a specified limit but actual region size does not remain same or exceeded the specified limit "
             + sameRegionSizeCounter + " :regionSize " + previousSize;
@@ -3558,11 +3578,13 @@ public class WANTestBase extends DistributedTestCase {
 
     private final Set removedLocators = new HashSet();
 
+    @Override
     public synchronized void locatorsDiscovered(List locators) {
       discoveredLocators.addAll(locators);
       notifyAll();
     }
 
+    @Override
     public synchronized void locatorsRemoved(List locators) {
       removedLocators.addAll(locators);
       notifyAll();
@@ -3604,6 +3626,7 @@ public class WANTestBase extends DistributedTestCase {
       this.numPuts = numPuts;
     }
 
+    @Override
     public Object call() throws Exception {
       while (true) {
         int key = key_value.incrementAndGet();
@@ -3627,16 +3650,19 @@ public class WANTestBase extends DistributedTestCase {
 
     public MyGatewayEventFilter() {}
 
+    @Override
     public boolean beforeEnqueue(GatewayQueueEvent event) {
       this.beforeEnqueueInvoked = true;
       return !((Long) event.getKey() >= 500 && (Long) event.getKey() < 600);
     }
 
+    @Override
     public boolean beforeTransmit(GatewayQueueEvent event) {
       this.beforeTransmitInvoked = true;
       return !((Long) event.getKey() >= 600 && (Long) event.getKey() < 700);
     }
 
+    @Override
     public void close() {
       // TODO Auto-generated method stub
 
@@ -3646,6 +3672,7 @@ public class WANTestBase extends DistributedTestCase {
       return Id;
     }
 
+    @Override
     public void afterAcknowledgement(GatewayQueueEvent event) {
       this.afterAckInvoked = true;
       // TODO Auto-generated method stub
@@ -3670,14 +3697,17 @@ public class WANTestBase extends DistributedTestCase {
 
     public MyGatewayEventFilter_AfterAck() {}
 
+    @Override
     public boolean beforeEnqueue(GatewayQueueEvent event) {
       return true;
     }
 
+    @Override
     public boolean beforeTransmit(GatewayQueueEvent event) {
       return true;
     }
 
+    @Override
     public void close() {
       // TODO Auto-generated method stub
 
@@ -3687,6 +3717,7 @@ public class WANTestBase extends DistributedTestCase {
       return Id;
     }
 
+    @Override
     public void afterAcknowledgement(GatewayQueueEvent event) {
       ackList.add((Long) event.getKey());
     }
@@ -3716,18 +3747,21 @@ public class WANTestBase extends DistributedTestCase {
 
     public PDXGatewayEventFilter() {}
 
+    @Override
     public boolean beforeEnqueue(GatewayQueueEvent event) {
       System.out.println("Invoked enqueue for " + event);
       this.beforeEnqueueInvoked++;
       return true;
     }
 
+    @Override
     public boolean beforeTransmit(GatewayQueueEvent event) {
       System.out.println("Invoked transmit for " + event);
       this.beforeTransmitInvoked++;
       return true;
     }
 
+    @Override
     public void close() {
       // TODO Auto-generated method stub
 
@@ -3737,6 +3771,7 @@ public class WANTestBase extends DistributedTestCase {
       return Id;
     }
 
+    @Override
     public void afterAcknowledgement(GatewayQueueEvent event) {
       System.out.println("Invoked afterAck for " + event);
       this.afterAckInvoked++;
@@ -3832,6 +3867,7 @@ public class WANTestBase extends DistributedTestCase {
   public static void checkAsyncQueueMBean(final VM vm, final boolean shouldExist) {
     SerializableRunnable checkAsyncQueueMBean =
         new SerializableRunnable("Check Async Queue MBean") {
+          @Override
           public void run() {
             ManagementService service = ManagementService.getManagementService(cache);
             AsyncEventQueueMXBean bean = service.getLocalAsyncEventQueueMXBean("pn");
@@ -3853,6 +3889,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void checkProxyReceiver(final VM vm, final DistributedMember senderMember) {
     SerializableRunnable checkProxySender = new SerializableRunnable("Check Proxy Receiver") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
         GatewayReceiverMXBean bean = null;
@@ -3882,6 +3919,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void checkProxySender(final VM vm, final DistributedMember senderMember) {
     SerializableRunnable checkProxySender = new SerializableRunnable("Check Proxy Sender") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
         GatewaySenderMXBean bean = null;
@@ -3920,6 +3958,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void checkReceiverMBean(final VM vm) {
     SerializableRunnable checkMBean = new SerializableRunnable("Check Receiver MBean") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
         GatewayReceiverMXBean bean = service.getLocalGatewayReceiverMXBean();
@@ -3934,6 +3973,7 @@ public class WANTestBase extends DistributedTestCase {
       final DistributedMember receiverMember) {
     SerializableRunnable checkNavigationAPIS =
         new SerializableRunnable("Check Receiver Navigation APIs") {
+          @Override
           public void run() {
             ManagementService service = ManagementService.getManagementService(cache);
             DistributedSystemMXBean bean = service.getDistributedSystemMXBean();
@@ -3964,6 +4004,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void checkSenderMBean(final VM vm, final String regionPath, boolean connected) {
     SerializableRunnable checkMBean = new SerializableRunnable("Check Sender MBean") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
 
@@ -3987,6 +4028,7 @@ public class WANTestBase extends DistributedTestCase {
   public static void checkSenderNavigationAPIS(final VM vm, final DistributedMember senderMember) {
     SerializableRunnable checkNavigationAPIS =
         new SerializableRunnable("Check Sender Navigation APIs") {
+          @Override
           public void run() {
             ManagementService service = ManagementService.getManagementService(cache);
             DistributedSystemMXBean bean = service.getDistributedSystemMXBean();
@@ -4018,6 +4060,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void startGatewaySender(final VM vm) {
     SerializableRunnable stopGatewaySender = new SerializableRunnable("Start Gateway Sender") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
         GatewaySenderMXBean bean = service.getLocalGatewaySenderMXBean("pn");
@@ -4037,6 +4080,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void stopGatewaySender(final VM vm) {
     SerializableRunnable stopGatewaySender = new SerializableRunnable("Stop Gateway Sender") {
+      @Override
       public void run() {
         ManagementService service = ManagementService.getManagementService(cache);
         GatewaySenderMXBean bean = service.getLocalGatewaySenderMXBean("pn");
@@ -4058,6 +4102,7 @@ public class WANTestBase extends DistributedTestCase {
       final boolean shouldExist) {
     SerializableRunnable checkProxyAsyncQueue =
         new SerializableRunnable("Check Proxy Async Queue") {
+          @Override
           public void run() {
             SystemManagementService service =
                 (SystemManagementService) ManagementService.getManagementService(cache);
@@ -4104,6 +4149,7 @@ public class WANTestBase extends DistributedTestCase {
   @SuppressWarnings("serial")
   public static void checkRemoteClusterStatus(final VM vm, final DistributedMember senderMember) {
     SerializableRunnable checkProxySender = new SerializableRunnable("DS Map Size") {
+      @Override
       public void run() {
         await().untilAsserted(() -> {
           final ManagementService service = ManagementService.getManagementService(cache);

@@ -43,6 +43,8 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.RegionDestroyedException;
 import org.apache.geode.cache.query.internal.CqStateImpl;
@@ -102,17 +104,20 @@ public class InitialImageOperation {
   /**
    * internal flag used by unit tests to test early disconnect from distributed system
    */
+  @MutableForTesting
   public static volatile boolean abortTest = false;
 
   /**
    * maximum number of bytes to put in a single message
    */
+  @MutableForTesting
   public static int CHUNK_SIZE_IN_BYTES =
       Integer.getInteger("GetInitialImage.chunkSize", 500 * 1024).intValue();
 
   /**
    * Allowed number of in flight GII chunks
    */
+  @MutableForTesting
   public static int CHUNK_PERMITS =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "GetInitialImage.CHUNK_PERMITS", 16)
           .intValue();
@@ -120,6 +125,7 @@ public class InitialImageOperation {
   /**
    * maximum number of unfinished operations to be supported by delta GII
    */
+  @MutableForTesting
   public static int MAXIMUM_UNFINISHED_OPERATIONS = Integer.getInteger(
       DistributionConfig.GEMFIRE_PREFIX + "GetInitialImage.MAXIMUM_UNFINISHED_OPERATIONS", 10000)
       .intValue();
@@ -127,7 +133,8 @@ public class InitialImageOperation {
   /**
    * Allowed number GIIs in parallel
    */
-  public static int MAX_PARALLEL_GIIS =
+  @MutableForTesting
+  public static final int MAX_PARALLEL_GIIS =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "GetInitialImage.MAX_PARALLEL_GIIS", 5)
           .intValue();
 
@@ -159,21 +166,25 @@ public class InitialImageOperation {
   /**
    * true if this is delta gii
    */
+  @MutableForTesting("Seems to be unused?")
   protected volatile boolean isDeltaGII = false;
 
   /**
    * for testing purposes
    */
+  @MutableForTesting
   public static volatile int slowImageProcessing = 0;
 
   /**
    * for testing purposes
    */
+  @MutableForTesting
   public static volatile int slowImageSleeps = 0;
 
   /**
    * for testing purposes
    */
+  @MutableForTesting
   public static boolean VMOTION_DURING_GII = false;
 
   private boolean isSynchronizing;
@@ -1564,6 +1575,7 @@ public class InitialImageOperation {
     protected Set unfinishedKeys;
 
     /** The versions in which this message was modified */
+    @Immutable
     private static final Version[] dsfidVersions = null;
 
     @Override
@@ -1754,6 +1766,7 @@ public class InitialImageOperation {
                  * @param b positive if last chunk
                  * @return true to continue to next chunk
                  */
+                @Override
                 public boolean executeWith(Object entList, int b) {
                   if (rgn.getCache().isClosed()) {
                     return false;
@@ -2055,6 +2068,7 @@ public class InitialImageOperation {
       // ...end of abortTest code
     }
 
+    @Override
     public int getDSFID() {
       return REQUEST_IMAGE_MESSAGE;
     }
@@ -2282,6 +2296,7 @@ public class InitialImageOperation {
       }
     }
 
+    @Override
     public int getDSFID() {
       return REQUEST_FILTERINFO_MESSAGE;
     }
@@ -2552,6 +2567,7 @@ public class InitialImageOperation {
       }
     }
 
+    @Override
     public int getDSFID() {
       return REQUEST_RVV_MESSAGE;
     }
@@ -2643,6 +2659,7 @@ public class InitialImageOperation {
       }
     }
 
+    @Override
     public int getDSFID() {
       return REQUEST_SYNC_MESSAGE;
     }
@@ -2721,6 +2738,7 @@ public class InitialImageOperation {
     private transient Version remoteVersion;
 
     /** The versions in which this message was modified */
+    @Immutable
     private static final Version[] dsfidVersions = null;
 
     @Override
@@ -2992,10 +3010,12 @@ public class InitialImageOperation {
       this.versionTag = tag;
     }
 
+    @Override
     public int getDSFID() {
       return IMAGE_ENTRY;
     }
 
+    @Override
     public void toData(DataOutput out) throws IOException {
       out.writeByte(this.entryBits);
       byte flags = (this.versionTag != null) ? HAS_VERSION : 0;
@@ -3014,6 +3034,7 @@ public class InitialImageOperation {
     static final byte HAS_VERSION = 0x01;
     static final byte PERSISTENT_VERSION = 0x02;
 
+    @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       this.entryBits = in.readByte();
       byte flags = in.readByte();
@@ -3151,6 +3172,7 @@ public class InitialImageOperation {
       return tag;
     }
 
+    @Override
     public int size() {
       // Sanity check for entries size and versions size.
       if (isRegionVersioned) {
@@ -3161,6 +3183,7 @@ public class InitialImageOperation {
       return super.size();
     }
 
+    @Override
     public void clear() {
       super.clear();
       this.versionTags.clear();
@@ -4037,35 +4060,54 @@ public class InitialImageOperation {
 
     public abstract void reset();
 
+    @Override
     public abstract void run();
 
   }
 
   public static final boolean TRACE_GII =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "GetInitialImage.TRACE_GII");
+
+  @MutableForTesting
   public static boolean FORCE_FULL_GII =
       Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "GetInitialImage.FORCE_FULL_GII");
 
   // test hooks should be applied and waited in strict order as following
 
+  // test hooks should be applied and waited in strict order as following
+
   // internal test hooks at requester for sending request
+  @MutableForTesting
   private static GIITestHook internalBeforeGetInitialImage;
+  @MutableForTesting
   private static GIITestHook internalBeforeRequestRVV;
+  @MutableForTesting
   private static GIITestHook internalAfterRequestRVV;
+  @MutableForTesting
   private static GIITestHook internalAfterCalculatedUnfinishedOps;
+  @MutableForTesting
   private static GIITestHook internalBeforeSavedReceivedRVV;
+  @MutableForTesting
   private static GIITestHook internalAfterSavedReceivedRVV;
+  @MutableForTesting
   private static GIITestHook internalAfterSentRequestImage;
 
   // internal test hooks at provider
+  @MutableForTesting
   private static GIITestHook internalAfterReceivedRequestImage;
+  @MutableForTesting
   private static GIITestHook internalDuringPackingImage;
+  @MutableForTesting
   private static GIITestHook internalAfterSentImageReply;
 
   // internal test hooks at requester for processing ImageReply
+  @MutableForTesting
   private static GIITestHook internalAfterReceivedImageReply;
+  @MutableForTesting
   private static GIITestHook internalDuringApplyDelta;
+  @MutableForTesting
   private static GIITestHook internalBeforeCleanExpiredTombstones;
+  @MutableForTesting
   private static GIITestHook internalAfterSavedRVVEnd;
 
   public enum GIITestHookType {

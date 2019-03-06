@@ -14,8 +14,10 @@
  */
 package org.apache.geode.internal.jta;
 
+import static org.apache.geode.internal.logging.LogWriterLevel.SEVERE;
+
 import org.apache.geode.LogWriter;
-import org.apache.geode.internal.logging.InternalLogWriter;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.internal.logging.PureLogWriter;
 
 /**
@@ -23,8 +25,9 @@ import org.apache.geode.internal.logging.PureLogWriter;
  *
  */
 public class TransactionUtils {
-
+  @MakeNotStatic
   private static LogWriter dslogWriter = null;
+  @MakeNotStatic
   private static LogWriter purelogWriter = null;
 
   /**
@@ -38,7 +41,7 @@ public class TransactionUtils {
     } else if (purelogWriter != null) {
       return purelogWriter;
     } else {
-      purelogWriter = new PureLogWriter(InternalLogWriter.SEVERE_LEVEL);
+      purelogWriter = new PureLogWriter(SEVERE.intLevel());
       return purelogWriter;
     }
   }

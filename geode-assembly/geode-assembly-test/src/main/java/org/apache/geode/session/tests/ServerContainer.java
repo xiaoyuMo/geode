@@ -18,8 +18,13 @@ import static org.apache.geode.session.tests.ContainerInstall.TMP_DIR;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.UUID;
+import java.util.function.IntSupplier;
+import java.util.stream.Stream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.JavaVersion;
@@ -38,7 +43,6 @@ import org.codehaus.cargo.container.tomcat.TomcatPropertySet;
 import org.codehaus.cargo.generic.DefaultContainerFactory;
 import org.codehaus.cargo.generic.configuration.DefaultConfigurationFactory;
 
-import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.logging.LogService;
 
 /**
@@ -52,6 +56,7 @@ import org.apache.geode.internal.logging.LogService;
  */
 public abstract class ServerContainer {
   private final File containerConfigHome;
+  private final IntSupplier portSupplier;
   private InstalledLocalContainer container;
   private ContainerInstall install;
 
@@ -62,7 +67,7 @@ public abstract class ServerContainer {
   public String description;
   public File gemfireLogFile;
   public File cacheXMLFile;
-  public File logDir;
+  public File cargoLogDir;
 
   public String loggingLevel;
 
@@ -89,18 +94,20 @@ public abstract class ServerContainer {
    *        in
    * @param containerDescriptors A string of extra descriptors for the container used in the
    *        containers {@link #description}
+   * @param portSupplier allocates ports for use by the container
    */
   public ServerContainer(ContainerInstall install, File containerConfigHome,
-      String containerDescriptors) throws IOException {
+      String containerDescriptors, IntSupplier portSupplier) throws IOException {
     this.install = install;
+    this.portSupplier = portSupplier;
     // Get a container description for logging and output
     description = generateUniqueContainerDescription(containerDescriptors);
     // Setup logging
     loggingLevel = DEFAULT_LOGGING_LEVEL;
-    logDir = new File(DEFAULT_LOG_DIR + description);
-    logDir.mkdirs();
+    cargoLogDir = new File(DEFAULT_LOG_DIR + description);
+    cargoLogDir.mkdirs();
 
-    logger.info("Creating new container " + description);
+    logger.info("Creating new container {}", description);
 
     DEFAULT_CONF_DIR = install.getHome() + "/conf/";
     // Use the default configuration home path if not passed a config home
@@ -124,11 +131,11 @@ public abstract class ServerContainer {
         "-Djava.security.egd=file:/dev/./urandom");
 
     // Setup the gemfire log file for this container
-    gemfireLogFile = new File(logDir.getAbsolutePath() + "/gemfire.log");
+    gemfireLogFile = new File(cargoLogDir.getAbsolutePath() + "/gemfire.log");
     gemfireLogFile.getParentFile().mkdirs();
     setSystemProperty("log-file", gemfireLogFile.getAbsolutePath());
 
-    logger.info("Gemfire logs can be found in " + gemfireLogFile.getAbsolutePath());
+    logger.info("Gemfire logs can be found in {}", gemfireLogFile.getAbsolutePath());
 
     // Create the container
     container = (InstalledLocalContainer) (new DefaultContainerFactory())
@@ -136,12 +143,12 @@ public abstract class ServerContainer {
     // Set container's home dir to where it was installed
     container.setHome(install.getHome());
     // Set container output log to directory setup for it
-    container.setOutput(logDir.getAbsolutePath() + "/container.log");
+    container.setOutput(cargoLogDir.getAbsolutePath() + "/container.log");
 
     // Set cacheXML file
     File installXMLFile = install.getCacheXMLFile();
     // Sets the cacheXMLFile variable and adds the cache XML file server system property map
-    setCacheXMLFile(new File(logDir.getAbsolutePath() + "/" + installXMLFile.getName()));
+    setCacheXMLFile(new File(cargoLogDir.getAbsolutePath() + "/" + installXMLFile.getName()));
     // Copy the cacheXML file to a new, unique location for this container
     FileUtils.copyFile(installXMLFile, cacheXMLFile);
   }
@@ -152,7 +159,7 @@ public abstract class ServerContainer {
    */
   public String generateUniqueContainerDescription(String extraIdentifiers) {
     return String.join("_", Arrays.asList(install.getInstallDescription(), extraIdentifiers,
-        Long.toString(System.nanoTime())));
+        UUID.randomUUID().toString()));
   }
 
   /**
@@ -166,7 +173,7 @@ public abstract class ServerContainer {
     // Deploy the war the container's configuration
     getConfiguration().addDeployable(war);
 
-    logger.info("Deployed WAR file at " + war.getFile());
+    logger.info("Deployed WAR file at {}", war.getFile());
   }
 
   /**
@@ -179,13 +186,16 @@ public abstract class ServerContainer {
           + " failed to start because it is currently " + container.getState());
 
     LocalConfiguration config = getConfiguration();
-    int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(4);
     // Set container ports from available ports
-    config.setProperty(ServletPropertySet.PORT, Integer.toString(ports[0]));
-    config.setProperty(GeneralPropertySet.RMI_PORT, Integer.toString(ports[1]));
-    config.setProperty(TomcatPropertySet.AJP_PORT, Integer.toString(ports[2]));
+    int servletPort = portSupplier.getAsInt();
+    int containerRmiPort = portSupplier.getAsInt();
+    int tomcatAjpPort = portSupplier.getAsInt();
+    config.setProperty(ServletPropertySet.PORT, Integer.toString(servletPort));
+    config.setProperty(GeneralPropertySet.RMI_PORT, Integer.toString(containerRmiPort));
+    config.setProperty(TomcatPropertySet.AJP_PORT, Integer.toString(tomcatAjpPort));
     config.setProperty(GeneralPropertySet.PORT_OFFSET, "0");
-    String jvmArgs = "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + ports[3];
+    int jvmJmxPort = portSupplier.getAsInt();
+    String jvmArgs = "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + jvmJmxPort;
     if (SystemUtils.isJavaVersionAtLeast(JavaVersion.JAVA_9)) {
       jvmArgs += " --add-opens java.base/java.lang.module=ALL-UNNAMED" +
           " --add-opens java.base/jdk.internal.module=ALL-UNNAMED" +
@@ -199,7 +209,7 @@ public abstract class ServerContainer {
 
 
     try {
-      logger.info("Starting container " + description + "RMI Port: " + ports[3]);
+      logger.info("Starting container {} RMI Port: {}", description, jvmJmxPort);
       // Writes settings to the expected form (either XML or WAR file)
       writeSettings();
       // Start the container through cargo
@@ -223,34 +233,62 @@ public abstract class ServerContainer {
     container.stop();
   }
 
-  public void dumpLogs() throws IOException {
-    for (File file : logDir.listFiles()) {
-      dumpToStdOut(file);
-    }
+  public void dumpLogs() {
+    System.out.println("Logs for container " + this);
+    dumpLogsInDir(cargoLogDir.toPath());
+    dumpLogsInDir(containerConfigHome.toPath().resolve("logs"));
+    dumpConfiguration();
+  }
 
-    for (File file : new File(containerConfigHome, "logs").listFiles()) {
-      dumpToStdOut(file);
+  private static void dumpLogsInDir(Path dir) {
+    try (Stream<Path> paths = Files.list(dir)) {
+      paths.forEach(ServerContainer::dumpToStdOut);
+    } catch (IOException thrown) {
+      System.out.println("-------------------------------------------");
+      System.out.println("Exception while dumping log files from directory to stdout.");
+      System.out.println("   Directory: " + dir.toAbsolutePath());
+      System.out.println("   Exception: " + thrown);
+      System.out.println("-------------------------------------------");
     }
   }
 
-  private void dumpToStdOut(final File file) throws IOException {
+  private static void dumpToStdOut(Path path) {
     System.out.println("-------------------------------------------");
-    System.out.println(file.getAbsolutePath());
+    System.out.println(path.toAbsolutePath());
     System.out.println("-------------------------------------------");
-    FileUtils.copyFile(file, System.out);
+    try {
+      Files.copy(path, System.out);
+    } catch (IOException thrown) {
+      System.out.println("Exception while dumping log file to stdout.");
+      System.out.println("   File: " + path.toAbsolutePath());
+      System.out.println("   Exception: " + thrown);
+    }
     System.out.println("-------------------------------------------");
-    System.out.println("");
+    System.out.println();
+  }
+
+  private void dumpConfiguration() {
+    System.out.println("-------------------------------------------");
+    System.out.println("Configuration for container " + this);
+    System.out.println("-------------------------------------------");
+    LocalConfiguration configuration = getConfiguration();
+    System.out.format("Name: %s%n", configuration);
+    System.out.format("Class: %s%n", configuration.getClass());
+    System.out.println("Properties:");
+    configuration.getProperties().entrySet().forEach(System.out::println);
+    System.out.println("-------------------------------------------");
+    System.out.println();
   }
 
   /**
    * Copies the container configuration (found through {@link #getConfiguration()}) to the logging
-   * directory specified by {@link #logDir}
+   * directory specified by {@link #cargoLogDir}
    */
   public void cleanUp() throws IOException {
     File configDir = new File(getConfiguration().getHome());
 
     if (configDir.exists()) {
-      logger.info("Deleting configuration folder " + configDir.getAbsolutePath());
+      logger.info("Deleting configuration folder {}", configDir.getAbsolutePath());
       FileUtils.deleteDirectory(configDir);
     }
   }
@@ -406,7 +444,7 @@ public abstract class ServerContainer {
       attributes.put("host", locatorAddress);
       attributes.put("port", Integer.toString(locatorPort));
 
-      ContainerInstall.editXMLFile(getSystemProperty("cache-xml-file"), "locator", "pool",
+      ContainerInstall.editXMLFile(cacheXMLFile.getAbsolutePath(), "locator", "pool",
           attributes, true);
     } else {
       setSystemProperty("locators", locatorAddress + "[" + locatorPort + "]");

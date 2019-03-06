@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.Cache;
@@ -168,7 +169,8 @@ public class SerialGatewaySenderQueue implements RegionQueue {
 
   public static final int DEFAULT_MESSAGE_SYNC_INTERVAL = 1;
 
-  private static volatile int messageSyncInterval = DEFAULT_MESSAGE_SYNC_INTERVAL;
+  @Immutable
+  private static final int messageSyncInterval = DEFAULT_MESSAGE_SYNC_INTERVAL;
 
   private BatchRemovalThread removalThread = null;
 
@@ -204,6 +206,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     }
   }
 
+  @Override
   public Region<Long, AsyncEvent> getRegion() {
     return this.region;
   }
@@ -212,6 +215,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     getRegion().localDestroyRegion();
   }
 
+  @Override
   public boolean put(Object event) throws CacheException {
     lock.writeLock().lock();
     try {
@@ -252,6 +256,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     return key.longValue();
   }
 
+  @Override
   public AsyncEvent take() throws CacheException {
     // Unsupported since we have no callers.
     // If we do want to support it then each caller needs
@@ -259,6 +264,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public List<AsyncEvent> take(int batchSize) throws CacheException {
     // This method has no callers.
     // If we do want to support it then the callers
@@ -270,6 +276,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
    * This method removes the last entry. However, it will only let the user remove entries that they
    * have peeked. If the entry was not peeked, this method will silently return.
    */
+  @Override
   public void remove() throws CacheException {
     lock.writeLock().lock();
     try {
@@ -322,6 +329,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
    *
    * @param size the number of entries to remove
    */
+  @Override
   public void remove(int size) throws CacheException {
     for (int i = 0; i < size; i++) {
       remove();
@@ -331,6 +339,7 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     }
   }
 
+  @Override
   public Object peek() throws CacheException {
     Object object = peekAhead();
     if (logger.isTraceEnabled()) {
@@ -342,10 +351,12 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     // so no need to worry about off-heap refCount.
   }
 
+  @Override
   public List<AsyncEvent> peek(int size) throws CacheException {
     return peek(size, -1);
   }
 
+  @Override
   public List<AsyncEvent> peek(int size, int timeToWait) throws CacheException {
     final boolean isTraceEnabled = logger.isTraceEnabled();
 
@@ -401,17 +412,20 @@ public class SerialGatewaySenderQueue implements RegionQueue {
     return "SerialGatewaySender queue :" + this.regionName;
   }
 
+  @Override
   public int size() {
     int size = ((LocalRegion) this.region).entryCount();
     return size + this.sender.getTmpQueuedEventSize();
   }
 
+  @Override
   @SuppressWarnings("rawtypes")
   public void addCacheListener(CacheListener listener) {
     AttributesMutator mutator = this.region.getAttributesMutator();
     mutator.addCacheListener(listener);
   }
 
+  @Override
   @SuppressWarnings("rawtypes")
   public void removeCacheListener() {
     AttributesMutator mutator = this.region.getAttributesMutator();

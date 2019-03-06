@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheCallback;
 import org.apache.geode.cache.query.CqAttributes;
 import org.apache.geode.cache.query.CqAttributesMutator;
@@ -33,6 +34,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
 
   private volatile ArrayList<CqListener> cqListeners = null;
 
+  @Immutable
   private static final CqListener[] EMPTY_LISTENERS = new CqListener[0];
 
   /**
@@ -45,6 +47,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
    *
    * @return CqListener[]
    */
+  @Override
   public CqListener[] getCqListeners() {
     final ArrayList listeners = this.cqListeners;
     if (listeners == null) {
@@ -64,6 +67,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
    * Returns the CqListener set with the CQ
    *
    */
+  @Override
   public CqListener getCqListener() {
     ArrayList<CqListener> listeners = this.cqListeners;
     if (listeners == null) {
@@ -97,6 +101,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
    * @param cql the user defined cq listener to add to the CqQuery.
    * @throws IllegalArgumentException if <code>aListener</code> is null
    */
+  @Override
   public void addCqListener(CqListener cql) {
     if (cql == null) {
       throw new IllegalArgumentException(
@@ -123,6 +128,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
    * @param addedListeners a possibly null or empty array of listeners to add to this CqQuery.
    * @throws IllegalArgumentException if the <code>newListeners</code> array has a null element
    */
+  @Override
   public void initCqListeners(CqListener[] addedListeners) {
     ArrayList<CqListener> oldListeners;
     synchronized (this.clSync) {
@@ -182,6 +188,7 @@ public class CqAttributesImpl implements CqAttributes, CqAttributesMutator, Clon
    * @param cql the Cqlistener to remove from the CqQuery.
    * @throws IllegalArgumentException if <code>cl</code> is null
    */
+  @Override
   public void removeCqListener(CqListener cql) {
     if (cql == null) {
       throw new IllegalArgumentException(

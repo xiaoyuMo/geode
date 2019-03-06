@@ -34,7 +34,8 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
 import org.apache.geode.StatisticsFactory;
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.AttributesMutator;
 import org.apache.geode.cache.CacheCallback;
 import org.apache.geode.cache.CacheListener;
@@ -163,6 +164,7 @@ public abstract class AbstractRegion implements InternalRegion, AttributesMutato
 
   private ExpirationAction regionTimeToLiveExpirationAction;
 
+  @Immutable
   public static final Scope DEFAULT_SCOPE = Scope.DISTRIBUTED_NO_ACK;
 
   protected Scope scope = DEFAULT_SCOPE;
@@ -375,7 +377,7 @@ public abstract class AbstractRegion implements InternalRegion, AttributesMutato
     }
   }
 
-  @TestingOnly
+  @VisibleForTesting
   AbstractRegion() {
     this.cache = null;
     this.serialNumber = 0;
@@ -731,6 +733,7 @@ public abstract class AbstractRegion implements InternalRegion, AttributesMutato
     return this.isGatewaySenderEnabled;
   }
 
+  @Immutable
   private static final CacheListener[] EMPTY_LISTENERS = new CacheListener[0];
 
   @Override

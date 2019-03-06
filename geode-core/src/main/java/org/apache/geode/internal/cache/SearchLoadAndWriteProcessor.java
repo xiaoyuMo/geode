@@ -35,6 +35,7 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.GemFireException;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.CacheLoader;
 import org.apache.geode.cache.CacheLoaderException;
@@ -111,6 +112,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
   private volatile boolean authorative = false;
   /** remoteLoadInProgress is volatile to make sure response threads see the current value */
   private volatile boolean remoteLoadInProgress = false;
+  @MakeNotStatic
   private static final ProcessorKeeper21 processorKeeper = new ProcessorKeeper21(false);
   // private static Set availableAcceptHelperSet = new HashSet();
   /** The members that haven't replied yet */
@@ -229,16 +231,20 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
     }
   }
 
+  @Override
   public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {
     // Ignore - if they just joined, they don't have what we want
   }
 
+  @Override
   public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
       InternalDistributedMember whoSuspected, String reason) {}
 
+  @Override
   public void quorumLost(DistributionManager distributionManager,
       Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
+  @Override
   public void memberDeparted(DistributionManager distributionManager,
       final InternalDistributedMember id, final boolean crashed) {
 
@@ -1018,6 +1024,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
           // do this on the waiting pool in case the send blocks
           try {
             dm.getWaitingThreadPool().execute(new Runnable() {
+              @Override
               public void run() {
                 sendValueRequest(sender);
               }
@@ -1419,6 +1426,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
 
     }
 
+    @Override
     public int getDSFID() {
       return QUERY_MESSAGE;
     }
@@ -1677,6 +1685,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
       return true;
     }
 
+    @Override
     public int getDSFID() {
       return RESPONSE_MESSAGE;
     }
@@ -1776,6 +1785,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
       doGet(dm);
     }
 
+    @Override
     public int getDSFID() {
       return NET_SEARCH_REQUEST_MESSAGE;
     }
@@ -2033,6 +2043,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
           this.requestorTimedOut, this.authoritative, this.versionTag, getSender());
     }
 
+    @Override
     public int getDSFID() {
       return NET_SEARCH_REPLY_MESSAGE;
     }
@@ -2164,6 +2175,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
       doLoad(dm);
     }
 
+    @Override
     public int getDSFID() {
       return NET_LOAD_REQUEST_MESSAGE;
     }
@@ -2334,6 +2346,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
           this.isSerialized, this.requestorTimedOut);
     }
 
+    @Override
     public int getDSFID() {
       return NET_LOAD_REPLY_MESSAGE;
     }
@@ -2422,6 +2435,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
       Assert.assertTrue(processor.region.getScope().isDistributed());
     }
 
+    @Override
     public int getDSFID() {
       return NET_WRITE_REQUEST_MESSAGE;
     }
@@ -2635,6 +2649,7 @@ public class SearchLoadAndWriteProcessor implements MembershipListener {
       processor.incomingNetWriteReply(this.netWriteSucceeded, this.e, this.cacheWriterException);
     }
 
+    @Override
     public int getDSFID() {
       return NET_WRITE_REPLY_MESSAGE;
     }

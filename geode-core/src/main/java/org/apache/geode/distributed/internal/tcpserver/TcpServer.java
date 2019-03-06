@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.IncompatibleVersionException;
 import org.apache.geode.cache.UnsupportedVersionException;
 import org.apache.geode.distributed.internal.DistributionConfig;
@@ -101,18 +102,23 @@ public class TcpServer {
   // GossipServer.
   public static final int OLDGOSSIPVERSION = 1001;
 
-  private static final Map GOSSIP_TO_GEMFIRE_VERSION_MAP = new HashMap();
+  @MutableForTesting("The map used here is mutable, because some tests modify it")
+  private static final Map<Integer, Short> GOSSIP_TO_GEMFIRE_VERSION_MAP =
+      createGossipToVersionMap();
 
   // For test purpose only
+  @MutableForTesting
   public static boolean isTesting = false;
   // Non-final field for testing to avoid any security holes in system.
+  @MutableForTesting
   public static int TESTVERSION = GOSSIPVERSION;
+  @MutableForTesting
   public static int OLDTESTVERSION = OLDGOSSIPVERSION;
 
   public static final long SHUTDOWN_WAIT_TIME = 60 * 1000;
-  private static int MAX_POOL_SIZE =
+  private static final int MAX_POOL_SIZE =
       Integer.getInteger(DistributionConfig.GEMFIRE_PREFIX + "TcpServer.MAX_POOL_SIZE", 100);
-  private static int POOL_IDLE_TIMEOUT = 60 * 1000;
+  private static final int POOL_IDLE_TIMEOUT = 60 * 1000;
 
   private static final Logger log = LogService.getLogger();
 
@@ -144,9 +150,11 @@ public class TcpServer {
    * handled by this member "With different GOSSIPVERION". If GOSSIPVERIONS are same for then
    * current GOSSIPVERSION should be used.
    */
-  static {
-    GOSSIP_TO_GEMFIRE_VERSION_MAP.put(GOSSIPVERSION, Version.GFE_71.ordinal());
-    GOSSIP_TO_GEMFIRE_VERSION_MAP.put(OLDGOSSIPVERSION, Version.GFE_57.ordinal());
+  private static Map<Integer, Short> createGossipToVersionMap() {
+    HashMap<Integer, Short> map = new HashMap<>();
+    map.put(GOSSIPVERSION, Version.GFE_71.ordinal());
+    map.put(OLDGOSSIPVERSION, Version.GFE_57.ordinal());
+    return map;
   }
 
   public TcpServer(int port, InetAddress bind_address, Properties sslConfig,
@@ -197,6 +205,10 @@ public class TcpServer {
     log.info("TcpServer@" + System.identityHashCode(this)
         + " restarting: completed.  Server thread=" + this.serverThread + '@'
         + System.identityHashCode(this.serverThread) + ";alive=" + this.serverThread.isAlive());
+  }
+
+  public void restartCompleted(InternalDistributedSystem ds) {
+    this.handler.restartCompleted(ds);
   }
 
   public void start() throws IOException {
@@ -556,7 +568,7 @@ public class TcpServer {
     return TcpServer.isTesting ? TcpServer.OLDTESTVERSION : TcpServer.OLDGOSSIPVERSION;
   }
 
-  public static Map getGossipVersionMapForTestOnly() {
+  public static Map<Integer, Short> getGossipVersionMapForTestOnly() {
     return GOSSIP_TO_GEMFIRE_VERSION_MAP;
   }
 

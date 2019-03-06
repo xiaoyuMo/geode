@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.query.FunctionDomainException;
@@ -82,6 +83,7 @@ public class RangeIndex extends AbstractIndex {
   protected ThreadLocal<List> nullEntries = new ThreadLocal<List>();
   protected ThreadLocal<List> undefinedEntries = new ThreadLocal<List>();
 
+  @MutableForTesting
   public static TestHook testHook;
 
   // TODO: need more specific list of exceptions
@@ -130,6 +132,7 @@ public class RangeIndex extends AbstractIndex {
     this.internalIndexStats.incUpdateTime(endTime - startTime);
   }
 
+  @Override
   void addMapping(RegionEntry entry) throws IMQException {
     // Save oldKeys somewhere first
     this.evaluator.evaluate(entry, true);
@@ -137,6 +140,7 @@ public class RangeIndex extends AbstractIndex {
     clearCurrState();
   }
 
+  @Override
   void saveMapping(Object key, Object indxResultSet, RegionEntry entry) {
     if (key == null) {
       List nullSet = nullEntries.get();
@@ -424,6 +428,7 @@ public class RangeIndex extends AbstractIndex {
   }
 
   //// IndexProtocol interface implementation
+  @Override
   public boolean clear() throws QueryException {
     throw new UnsupportedOperationException(
         "Not yet implemented");
@@ -439,6 +444,7 @@ public class RangeIndex extends AbstractIndex {
    *
    * @return the type of index
    */
+  @Override
   public IndexType getType() {
     return IndexType.FUNCTIONAL;
   }
@@ -449,6 +455,7 @@ public class RangeIndex extends AbstractIndex {
    * because that happens concurrently with other index updates WITHOUT synchronization on
    * RegionEntry.
    */
+  @Override
   void addMapping(Object key, Object value, RegionEntry entry) throws IMQException {
 
     // Find old entries for the entry
@@ -492,6 +499,7 @@ public class RangeIndex extends AbstractIndex {
   /**
    * @param opCode one of REMOVE_OP, BEFORE_UPDATE_OP, AFTER_UPDATE_OP.
    */
+  @Override
   void removeMapping(RegionEntry entry, int opCode) throws IMQException {
     // Now we are not going to remove anything before update or when cleaning thread locals
     // In fact we will only Replace not remove and add now on.
@@ -636,6 +644,7 @@ public class RangeIndex extends AbstractIndex {
     }
   }
 
+  @Override
   public int getSizeEstimate(Object key, int operator, int matchLevel)
       throws TypeMismatchException {
     // Get approx size;
@@ -1148,6 +1157,7 @@ public class RangeIndex extends AbstractIndex {
    * RuntimeException("Problem in index query"); } }
    */
 
+  @Override
   void recreateIndexData() throws IMQException {
     /*
      * Asif : Mark the data maps to null & call the initialization code of index
@@ -1173,6 +1183,7 @@ public class RangeIndex extends AbstractIndex {
     this.initializeIndex(true);
   }
 
+  @Override
   void lockedQuery(Object key, int operator, Collection results, CompiledValue iterOps,
       RuntimeIterator runtimeItr, ExecutionContext context, List projAttrib,
       SelectResults intermediateResults, boolean isIntersection) throws TypeMismatchException,
@@ -1458,6 +1469,7 @@ public class RangeIndex extends AbstractIndex {
     RangeIndex.testHook = hook;
   }
 
+  @Override
   protected InternalIndexStatistics createStats(String indexName) {
     return new RangeIndexStatistics(indexName);
   }
@@ -1474,50 +1486,62 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Return the total number of times this index has been updated
      */
+    @Override
     public long getNumUpdates() {
       return this.vsdStats.getNumUpdates();
     }
 
+    @Override
     public void incNumValues(int delta) {
       this.vsdStats.incNumValues(delta);
     }
 
+    @Override
     public void updateNumKeys(long numKeys) {
       this.vsdStats.updateNumKeys(numKeys);
     }
 
+    @Override
     public void incNumKeys(long numKeys) {
       this.vsdStats.incNumKeys(numKeys);
     }
 
+    @Override
     public void incNumUpdates() {
       this.vsdStats.incNumUpdates();
     }
 
+    @Override
     public void incNumUpdates(int delta) {
       this.vsdStats.incNumUpdates(delta);
     }
 
+    @Override
     public void incUpdateTime(long delta) {
       this.vsdStats.incUpdateTime(delta);
     }
 
+    @Override
     public void incUpdatesInProgress(int delta) {
       this.vsdStats.incUpdatesInProgress(delta);
     }
 
+    @Override
     public void incNumUses() {
       this.vsdStats.incNumUses();
     }
 
+    @Override
     public void incUseTime(long delta) {
       this.vsdStats.incUseTime(delta);
     }
 
+    @Override
     public void incUsesInProgress(int delta) {
       this.vsdStats.incUsesInProgress(delta);
     }
 
+    @Override
     public void incReadLockCount(int delta) {
       this.vsdStats.incReadLockCount(delta);
     }
@@ -1525,6 +1549,7 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Returns the total amount of time (in nanoseconds) spent updating this index.
      */
+    @Override
     public long getTotalUpdateTime() {
       return this.vsdStats.getTotalUpdateTime();
     }
@@ -1532,6 +1557,7 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Returns the total number of times this index has been accessed by a query.
      */
+    @Override
     public long getTotalUses() {
       return this.vsdStats.getTotalUses();
     }
@@ -1539,6 +1565,7 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Returns the number of keys in this index.
      */
+    @Override
     public long getNumberOfKeys() {
       return this.vsdStats.getNumberOfKeys();
     }
@@ -1546,6 +1573,7 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Returns the number of values in this index.
      */
+    @Override
     public long getNumberOfValues() {
       return this.vsdStats.getNumberOfValues();
     }
@@ -1553,6 +1581,7 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Return the number of values for the specified key in this index.
      */
+    @Override
     public long getNumberOfValues(Object key) {
       if (key == null)
         return nullMappedEntries.getNumValues();
@@ -1568,10 +1597,12 @@ public class RangeIndex extends AbstractIndex {
     /**
      * Return the number of read locks taken on this index
      */
+    @Override
     public int getReadLockCount() {
       return this.vsdStats.getReadLockCount();
     }
 
+    @Override
     public void close() {
       this.vsdStats.close();
     }
@@ -1588,6 +1619,7 @@ public class RangeIndex extends AbstractIndex {
     }
   }
 
+  @Override
   public boolean isEmpty() {
     return valueToEntriesMapSize == 0 ? true : false;
   }

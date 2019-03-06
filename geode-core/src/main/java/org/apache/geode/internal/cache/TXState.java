@@ -35,6 +35,7 @@ import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.cache.DiskAccessException;
 import org.apache.geode.cache.EntryNotFoundException;
@@ -145,6 +146,7 @@ public class TXState implements TXStateInterface {
   /** keeps track of results of txPutEntry */
   private Map<EventID, Boolean> seenResults = new HashMap<EventID, Boolean>();
 
+  @Immutable
   static final TXEntryState ENTRY_EXISTS = new TXEntryState();
 
   private volatile DistributedMember proxyServer;
@@ -1540,13 +1542,19 @@ public class TXState implements TXStateInterface {
         txr = txWriteRegion(internalRegion, keyInfo);
       }
       result = dataReg.createReadEntry(txr, keyInfo, createIfAbsent);
+      if (result == null) {
+        // createReadEntry will only returns null if createIfAbsent is false.
+        // CreateIfAbsent will only be false when this method is called by set operations.
+        // In that case we do not want the TXState to have a TXEntryState.
+        assert !createIfAbsent;
+        return result;
+      }
     }
 
     if (result != null) {
       if (expectedOldValue != null) {
         Object val = result.getNearSidePendingValue();
         if (!AbstractRegionEntry.checkExpectedOldValue(expectedOldValue, val, internalRegion)) {
-          txr.cleanupNonDirtyEntries(internalRegion);
           throw new EntryNotFoundException(
               "The current value was not equal to expected value.");
         }
@@ -1587,8 +1595,8 @@ public class TXState implements TXStateInterface {
   @Override
   public Object getDeserializedValue(KeyInfo keyInfo, LocalRegion localRegion, boolean updateStats,
       boolean disableCopyOnRead, boolean preferCD, EntryEventImpl clientEvent,
-      boolean returnTombstones, boolean retainResult) {
-    TXEntryState tx = txReadEntry(keyInfo, localRegion, true, true/* create txEntry is absent */);
+      boolean returnTombstones, boolean retainResult, boolean createIfAbsent) {
+    TXEntryState tx = txReadEntry(keyInfo, localRegion, true, createIfAbsent);
     if (tx != null) {
       Object v = tx.getValue(keyInfo, localRegion, preferCD);
       if (!disableCopyOnRead) {
@@ -1739,18 +1747,18 @@ public class TXState implements TXStateInterface {
         preferCD, requestingClient, clientEvent, returnTombstones);
   }
 
-  private boolean readEntryAndCheckIfDestroyed(KeyInfo keyInfo, LocalRegion localRegion,
-      boolean rememberReads) {
-    TXEntryState tx =
-        txReadEntry(keyInfo, localRegion, rememberReads, true/* create txEntry is absent */);
-    if (tx != null) {
-      if (!tx.existsLocally()) {
+  private TXEntryState readEntryAndCheckIfDestroyed(KeyInfo keyInfo, LocalRegion localRegion,
+      boolean rememberReads, boolean createIfAbsent) {
+    TXEntryState txEntryState =
+        txReadEntry(keyInfo, localRegion, rememberReads, createIfAbsent);
+    if (txEntryState != null) {
+      if (!txEntryState.existsLocally()) {
         // It was destroyed by the transaction so skip
         // this key and try the next one
-        return true; // fix for bug 34583
+        return null; // fix for bug 34583
       }
     }
-    return false;
+    return txEntryState;
   }
 
   /*
@@ -1776,14 +1784,15 @@ public class TXState implements TXStateInterface {
         }
       }
     }
-    if (!readEntryAndCheckIfDestroyed(curr, currRgn, rememberReads)) {
+    TXEntryState txEntryState =
+        readEntryAndCheckIfDestroyed(curr, currRgn, rememberReads, allowTombstones);
+    if (txEntryState != null) {
       // need to create KeyInfo since higher level iterator may reuse KeyInfo
       return new TXEntry(currRgn,
           new KeyInfo(curr.getKey(), curr.getCallbackArg(), curr.getBucketId()), proxy,
           rememberReads);
-    } else {
-      return null;
     }
+    return null;
   }
 
   /*
@@ -1796,11 +1805,13 @@ public class TXState implements TXStateInterface {
   public Object getKeyForIterator(KeyInfo curr, LocalRegion currRgn, boolean rememberReads,
       boolean allowTombstones) {
     assert !(curr.getKey() instanceof RegionEntry);
-    if (!readEntryAndCheckIfDestroyed(curr, currRgn, rememberReads)) {
+    TXEntryState txEntryState =
+        readEntryAndCheckIfDestroyed(curr, currRgn, rememberReads, allowTombstones);
+    if (txEntryState != null) {
+      // txEntry is created/read into txState.
       return curr.getKey();
-    } else {
-      return null;
     }
+    return null;
   }
 
   /*

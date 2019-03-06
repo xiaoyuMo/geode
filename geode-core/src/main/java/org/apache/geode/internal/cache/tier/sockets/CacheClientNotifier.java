@@ -49,6 +49,7 @@ import org.apache.geode.DataSerializer;
 import org.apache.geode.Instantiator;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.StatisticsFactory;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.CacheEvent;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.InterestRegistrationEvent;
@@ -121,6 +122,7 @@ import org.apache.geode.security.AuthenticationRequiredException;
 public class CacheClientNotifier {
   private static final Logger logger = LogService.getLogger();
 
+  @MakeNotStatic
   private static volatile CacheClientNotifier ccnSingleton;
 
   /**
@@ -211,7 +213,7 @@ public class CacheClientNotifier {
       if (clientVersion.compareTo(Version.GFE_6516) >= 0) {
         DataSerializer.writeHashMap(dsToSupportedClasses, dos);
       }
-      if (clientVersion.compareTo(Version.GEODE_150) >= 0) {
+      if (clientVersion.compareTo(Version.GEODE_1_5_0) >= 0) {
         dos.writeInt(CLIENT_PING_TASK_PERIOD);
       }
     }
@@ -512,33 +514,25 @@ public class CacheClientNotifier {
       }
     } else {
       CacheClientProxy staleClientProxy = this.getClientProxy(proxyId);
-      boolean toCreateNewProxy = true;
       if (staleClientProxy != null) {
-        if (staleClientProxy.isConnected() && staleClientProxy.getSocket().isConnected()) {
-          successful = false;
-          toCreateNewProxy = false;
+        // A proxy exists for this non-durable client. It must be closed.
+        if (logger.isDebugEnabled()) {
+          logger.debug(
+              "CacheClientNotifier: A proxy exists for this non-durable client. It must be closed.");
+        }
+        if (staleClientProxy.startRemoval()) {
+          staleClientProxy.waitRemoval();
         } else {
-          // A proxy exists for this non-durable client. It must be closed.
-          if (logger.isDebugEnabled()) {
-            logger.debug(
-                "CacheClientNotifier: A proxy exists for this non-durable client. It must be closed.");
-          }
-          if (staleClientProxy.startRemoval()) {
-            staleClientProxy.waitRemoval();
-          } else {
-            staleClientProxy.close(false, false); // do not check for queue, just close it
-            removeClientProxy(staleClientProxy); // remove old proxy from proxy set
-          }
+          staleClientProxy.close(false, false); // do not check for queue, just close it
+          removeClientProxy(staleClientProxy); // remove old proxy from proxy set
         }
       } // non-null stale proxy
 
-      if (toCreateNewProxy) {
-        // Create the new proxy for this non-durable client
-        l_proxy =
-            new CacheClientProxy(this, socket, proxyId, isPrimary, clientConflation, clientVersion,
-                acceptorId, notifyBySubscription, this.cache.getSecurityService(), subject);
-        successful = this.initializeProxy(l_proxy);
-      }
+      // Create the new proxy for this non-durable client
+      l_proxy =
+          new CacheClientProxy(this, socket, proxyId, isPrimary, clientConflation, clientVersion,
+              acceptorId, notifyBySubscription, this.cache.getSecurityService(), subject);
+      successful = this.initializeProxy(l_proxy);
     }
 
     if (!successful) {
@@ -1051,6 +1045,7 @@ public class CacheClientNotifier {
           (InternalDistributedSystem) this.getCache().getDistributedSystem();
       final DistributionManager dm = ids.getDistributionManager();
       dm.getWaitingThreadPool().execute(new Runnable() {
+        @Override
         public void run() {
 
           CacheDistributionAdvisor advisor =
@@ -1413,7 +1408,7 @@ public class CacheClientNotifier {
    * It will remove the clients connected to the passed acceptorId. If its the only server, shuts
    * down this instance.
    */
-  protected synchronized void shutdown(long acceptorId) {
+  public synchronized void shutdown(long acceptorId) {
     final boolean isDebugEnabled = logger.isDebugEnabled();
     if (isDebugEnabled) {
       logger.debug("At cache server shutdown time, the number of cache servers in the cache is {}",
@@ -2140,6 +2135,7 @@ public class CacheClientNotifier {
    * then enque the event possibly causing the queue to grow beyond its capacity/max-size. See
    * #51400.
    */
+  @MakeNotStatic
   public static int eventEnqueueWaitTime;
 
   /**

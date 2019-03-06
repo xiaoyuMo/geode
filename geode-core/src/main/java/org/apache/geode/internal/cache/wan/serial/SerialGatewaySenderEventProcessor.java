@@ -369,6 +369,9 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
       if (m != null) {
         for (EventWrapper ew : m.values()) {
           GatewaySenderEventImpl gatewayEvent = ew.event;
+          if (logger.isDebugEnabled()) {
+            logger.debug("releaseUnprocessedEvents:" + gatewayEvent);
+          }
           gatewayEvent.release();
         }
         this.unprocessedEvents = null;
@@ -412,10 +415,18 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
           isPrimary = true;
         } else {
           // If it is not, create an uninitialized GatewayEventImpl and
-          // put it into the map of unprocessed events.
-          senderEvent = new GatewaySenderEventImpl(operation, event, substituteValue, false); // OFFHEAP
-                                                                                              // ok
-          handleSecondaryEvent(senderEvent);
+          // put it into the map of unprocessed events, except 2 Special cases:
+          // 1) UPDATE_VERSION_STAMP: only enqueue to primary
+          // 2) CME && !originRemote: only enqueue to primary
+          boolean isUpdateVersionStamp =
+              event.getOperation().equals(Operation.UPDATE_VERSION_STAMP);
+          boolean isCME_And_NotOriginRemote =
+              ((EntryEventImpl) event).isConcurrencyConflict() && !event.isOriginRemote();
+          if (!(isUpdateVersionStamp || isCME_And_NotOriginRemote)) {
+            senderEvent =
+                new GatewaySenderEventImpl(operation, event, substituteValue, false);
+            handleSecondaryEvent(senderEvent);
+          }
         }
       }
     }
@@ -570,6 +581,7 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
         return;
       }
       my_executor.execute(new Runnable() {
+        @Override
         public void run() {
           basicHandlePrimaryEvent(gatewayEvent);
         }
@@ -588,6 +600,7 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
         return;
       }
       my_executor.execute(new Runnable() {
+        @Override
         public void run() {
           basicHandlePrimaryDestroy(gatewayEvent.getEventId());
         }
@@ -876,12 +889,14 @@ public class SerialGatewaySenderEventProcessor extends AbstractGatewaySenderEven
     return sb.toString();
   }
 
+  @Override
   public String printUnprocessedEvents() {
     synchronized (this.unprocessedEventsLock) {
       return printEventIdList(this.unprocessedEvents.keySet());
     }
   }
 
+  @Override
   public String printUnprocessedTokens() {
     synchronized (this.unprocessedEventsLock) {
       return printEventIdList(this.unprocessedTokens.keySet());

@@ -34,6 +34,7 @@ import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThread;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.net.SocketCreator;
+import org.apache.geode.internal.process.UncheckedPidUnavailableException;
 import org.apache.geode.internal.statistics.platform.OsStatisticsFactory;
 import org.apache.geode.internal.util.concurrent.StoppableCountDownLatch;
 
@@ -88,11 +89,8 @@ public abstract class HostStatSampler
   private final StoppableCountDownLatch statSamplerInitializedLatch;
 
   private final CancelCriterion stopper;
-
   private final CallbackSampler callbackSampler;
-
   private final NanoTimer timer;
-
   private final LogFile logFile;
 
   protected HostStatSampler(CancelCriterion stopper, StatSamplerStats samplerStats) {
@@ -109,7 +107,7 @@ public abstract class HostStatSampler
     this(stopper, samplerStats, new NanoTimer(), logFile);
   }
 
-  protected HostStatSampler(CancelCriterion stopper, StatSamplerStats samplerStats, NanoTimer timer,
+  HostStatSampler(CancelCriterion stopper, StatSamplerStats samplerStats, NanoTimer timer,
       LogFile logFile) {
     this.stopper = stopper;
     this.statSamplerInitializedLatch = new StoppableCountDownLatch(this.stopper, 1);
@@ -138,14 +136,6 @@ public abstract class HostStatSampler
   @Override
   public Statistics[] getStatistics() {
     return getStatisticsManager().getStatistics();
-  }
-
-  /**
-   * Returns a unique id for the sampler's system.
-   */
-  @Override
-  public long getSystemId() {
-    return getStatisticsManager().getId();
   }
 
   /**
@@ -457,7 +447,15 @@ public abstract class HostStatSampler
   }
 
   protected long getSpecialStatsId() {
-    return getStatisticsManager().getId();
+    try {
+      int pid = getStatisticsManager().getPid();
+      if (pid > 0) {
+        return pid;
+      }
+    } catch (UncheckedPidUnavailableException ignored) {
+      // ignore and fall through
+    }
+    return getSystemId();
   }
 
   protected boolean fileSizeLimitInKB() {

@@ -14,6 +14,7 @@
  */
 package org.apache.geode.management.internal.cli.commands;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -28,13 +29,13 @@ import org.apache.geode.distributed.internal.InternalConfigurationPersistenceSer
 import org.apache.geode.management.cli.CliMetaData;
 import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.Result;
-import org.apache.geode.management.internal.cli.exceptions.EntityNotFoundException;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.functions.RegionDestroyFunction;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
 import org.apache.geode.management.internal.cli.result.CommandResult;
 import org.apache.geode.management.internal.cli.result.ResultBuilder;
 import org.apache.geode.management.internal.configuration.domain.XmlEntity;
+import org.apache.geode.management.internal.exceptions.EntityNotFoundException;
 import org.apache.geode.management.internal.security.ResourceOperation;
 import org.apache.geode.security.ResourcePermission;
 
@@ -95,19 +96,23 @@ public class DestroyRegionCommand extends InternalGfshCommand {
     if (ccService == null) {
       return;
     }
-    CacheConfig cacheConfig = ccService.getCacheConfig(null);
-    if (cacheConfig == null) {
-      return;
-    }
-    RegionConfig regionConfig = CacheElement.findElement(cacheConfig.getRegions(), regionName);
-    if (regionConfig == null) {
-      return;
-    }
-    CacheElement element =
-        CacheElement.findElement(regionConfig.getCustomRegionElements(), "jdbc-mapping");
-    if (element != null) {
-      throw new IllegalStateException("Cannot destroy region \"" + regionName
-          + "\" because JDBC mapping exists. Use \"destroy jdbc-mapping\" first.");
+
+    Set<String> groupNames = new HashSet<String>();
+    groupNames.addAll(ccService.getGroups());
+    groupNames.add("cluster");
+    for (String groupName : groupNames) {
+      CacheConfig cacheConfig = ccService.getCacheConfig(groupName);
+      if (cacheConfig != null) {
+        RegionConfig regionConfig = CacheElement.findElement(cacheConfig.getRegions(), regionName);
+        if (regionConfig != null) {
+          CacheElement element =
+              CacheElement.findElement(regionConfig.getCustomRegionElements(), "jdbc-mapping");
+          if (element != null) {
+            throw new IllegalStateException("Cannot destroy region \"" + regionName
+                + "\" because JDBC mapping exists. Use \"destroy jdbc-mapping\" first.");
+          }
+        }
+      }
     }
   }
 }

@@ -29,6 +29,7 @@ import static org.apache.geode.distributed.ConfigurationProperties.TCP_PORT;
 import java.util.Properties;
 
 import org.apache.geode.admin.internal.InetAddressUtil;
+import org.apache.geode.annotations.internal.MakeImmutable;
 import org.apache.geode.distributed.internal.DistributionConfig;
 
 
@@ -119,6 +120,7 @@ public interface DistributedSystemConfig extends Cloneable {
    *
    * @since GemFire 6.5
    */
+  @MakeImmutable
   int[] DEFAULT_MEMBERSHIP_PORT_RANGE = DistributionConfig.DEFAULT_MEMBERSHIP_PORT_RANGE;
 
   /**
@@ -196,6 +198,9 @@ public interface DistributedSystemConfig extends Cloneable {
 
   /** The default disable-tcp value (<code>false</code>) */
   boolean DEFAULT_DISABLE_TCP = DistributionConfig.DEFAULT_DISABLE_TCP;
+
+  /** The default disable-jmx value (<code>false</code>) */
+  boolean DEFAULT_DISABLE_JMX = DistributionConfig.DEFAULT_DISABLE_JMX;
 
   /** The default enable-network-partition-detection setting (<code>false</code>) */
   boolean DEFAULT_ENABLE_NETWORK_PARTITION_DETECTION =
@@ -367,6 +372,17 @@ public interface DistributedSystemConfig extends Cloneable {
    */
   boolean getDisableTcp();
 
+  /**
+   * Sets the disable-jmx property for the system. When JMX is disabled, Geode will not create
+   * MBeans.
+   */
+  void setDisableJmx(boolean flag);
+
+  /**
+   * Returns the disable-jmx property for the process. When JMX is disabled, Geode will not create
+   * MBeans.
+   */
+  boolean getDisableJmx();
 
   /**
    * Turns on network partition detection

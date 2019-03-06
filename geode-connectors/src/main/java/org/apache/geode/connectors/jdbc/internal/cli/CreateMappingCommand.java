@@ -14,8 +14,7 @@
  */
 package org.apache.geode.connectors.jdbc.internal.cli;
 
-
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -33,10 +32,14 @@ import org.apache.geode.cache.configuration.RegionConfig;
 import org.apache.geode.connectors.jdbc.JdbcAsyncWriter;
 import org.apache.geode.connectors.jdbc.JdbcLoader;
 import org.apache.geode.connectors.jdbc.JdbcWriter;
+import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
+import org.apache.geode.connectors.util.internal.MappingCommandUtils;
+import org.apache.geode.connectors.util.internal.MappingConstants;
 import org.apache.geode.distributed.ConfigurationPersistenceService;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.management.cli.CliMetaData;
+import org.apache.geode.management.cli.ConverterHint;
 import org.apache.geode.management.cli.SingleGfshCommand;
 import org.apache.geode.management.internal.cli.functions.CliFunctionResult;
 import org.apache.geode.management.internal.cli.i18n.CliStrings;
@@ -47,29 +50,35 @@ import org.apache.geode.security.ResourcePermission;
 @Experimental
 public class CreateMappingCommand extends SingleGfshCommand {
   static final String CREATE_MAPPING = "create jdbc-mapping";
-  static final String CREATE_MAPPING__HELP =
+  private static final String CREATE_MAPPING__HELP =
       EXPERIMENTAL + "Create a JDBC mapping for a region for use with a JDBC database.";
-  static final String CREATE_MAPPING__REGION_NAME = "region";
-  static final String CREATE_MAPPING__REGION_NAME__HELP =
+  private static final String CREATE_MAPPING__REGION_NAME = MappingConstants.REGION_NAME;
+  private static final String CREATE_MAPPING__REGION_NAME__HELP =
       "Name of the region the JDBC mapping is being created for.";
-  static final String CREATE_MAPPING__PDX_NAME = "pdx-name";
-  static final String CREATE_MAPPING__PDX_NAME__HELP =
+  private static final String CREATE_MAPPING__PDX_NAME = MappingConstants.PDX_NAME;
+  private static final String CREATE_MAPPING__PDX_NAME__HELP =
       "Name of pdx class for which values will be written to the database.";
-  static final String CREATE_MAPPING__TABLE_NAME = "table";
-  static final String CREATE_MAPPING__TABLE_NAME__HELP =
+  private static final String CREATE_MAPPING__TABLE_NAME = MappingConstants.TABLE_NAME;
+  private static final String CREATE_MAPPING__TABLE_NAME__HELP =
       "Name of database table for values to be written to.";
-  static final String CREATE_MAPPING__DATA_SOURCE_NAME = "data-source";
-  static final String CREATE_MAPPING__DATA_SOURCE_NAME__HELP = "Name of JDBC data source to use.";
-  static final String CREATE_MAPPING__SYNCHRONOUS_NAME = "synchronous";
-  static final String CREATE_MAPPING__SYNCHRONOUS_NAME__HELP =
+  private static final String CREATE_MAPPING__DATA_SOURCE_NAME = MappingConstants.DATA_SOURCE_NAME;
+  private static final String CREATE_MAPPING__DATA_SOURCE_NAME__HELP =
+      "Name of JDBC data source to use.";
+  private static final String CREATE_MAPPING__SYNCHRONOUS_NAME = MappingConstants.SYNCHRONOUS_NAME;
+  private static final String CREATE_MAPPING__SYNCHRONOUS_NAME__HELP =
       "By default, writes will be asynchronous. If true, writes will be synchronous.";
-
-  public static String createAsyncEventQueueName(String regionPath) {
-    if (regionPath.startsWith("/")) {
-      regionPath = regionPath.substring(1);
-    }
-    return "JDBC#" + regionPath.replace('/', '_');
-  }
+  private static final String CREATE_MAPPING__ID_NAME = MappingConstants.ID_NAME;
+  private static final String CREATE_MAPPING__ID_NAME__HELP =
+      "The table column names to use as the region key for this JDBC mapping. If more than one column name is given then they must be separated by commas.";
+  private static final String CREATE_MAPPING__CATALOG_NAME = MappingConstants.CATALOG_NAME;
+  private static final String CREATE_MAPPING__CATALOG_NAME__HELP =
+      "The catalog that contains the database table. By default, the catalog is the empty string causing the table to be referenced without a catalog prefix.";
+  private static final String CREATE_MAPPING__SCHEMA_NAME = MappingConstants.SCHEMA_NAME;
+  private static final String CREATE_MAPPING__SCHEMA_NAME__HELP =
+      "The schema that contains the database table. By default, the schema is the empty string causing the table to be referenced without a schema prefix.";
+  private static final String CREATE_MAPPING__GROUPS_NAME = "groups";
+  private static final String CREATE_MAPPING__GROUPS_NAME__HELP =
+      "The names of the server groups on which this mapping should be created.";
 
   @CliCommand(value = CREATE_MAPPING, help = CREATE_MAPPING__HELP)
   @CliMetaData(relatedTopic = CliStrings.DEFAULT_TOPIC_GEODE)
@@ -86,26 +95,58 @@ public class CreateMappingCommand extends SingleGfshCommand {
           help = CREATE_MAPPING__PDX_NAME__HELP) String pdxName,
       @CliOption(key = CREATE_MAPPING__SYNCHRONOUS_NAME,
           help = CREATE_MAPPING__SYNCHRONOUS_NAME__HELP,
-          specifiedDefaultValue = "true", unspecifiedDefaultValue = "false") boolean synchronous) {
+          specifiedDefaultValue = "true", unspecifiedDefaultValue = "false") boolean synchronous,
+      @CliOption(key = CREATE_MAPPING__ID_NAME, help = CREATE_MAPPING__ID_NAME__HELP) String id,
+      @CliOption(key = CREATE_MAPPING__CATALOG_NAME,
+          help = CREATE_MAPPING__CATALOG_NAME__HELP) String catalog,
+      @CliOption(key = CREATE_MAPPING__SCHEMA_NAME,
+          help = CREATE_MAPPING__SCHEMA_NAME__HELP) String schema,
+      @CliOption(key = {CliStrings.GROUP, CliStrings.GROUPS},
+          optionContext = ConverterHint.MEMBERGROUP,
+          help = CREATE_MAPPING__GROUPS_NAME__HELP) String[] groups) {
     if (regionName.startsWith("/")) {
       regionName = regionName.substring(1);
     }
 
-    // input
-    Set<DistributedMember> targetMembers = getMembers(null, null);
-    RegionMapping mapping = new RegionMapping(regionName, pdxName, table, dataSourceName);
+    Set<DistributedMember> targetMembers = findMembers(groups, null);
+    RegionMapping mapping =
+        new RegionMapping(regionName, pdxName, table, dataSourceName, id, catalog, schema);
 
     try {
       ConfigurationPersistenceService configurationPersistenceService =
           checkForClusterConfiguration();
-      CacheConfig cacheConfig = configurationPersistenceService.getCacheConfig(null);
-      RegionConfig regionConfig = checkForRegion(regionName, cacheConfig);
-      checkForExistingMapping(regionName, regionConfig);
-      checkForCacheLoader(regionName, regionConfig);
-      checkForCacheWriter(regionName, synchronous, regionConfig);
-      checkForAsyncQueue(regionName, synchronous, cacheConfig);
+      if (groups == null) {
+        groups = new String[] {ConfigurationPersistenceService.CLUSTER_CONFIG};
+      }
+      for (String group : groups) {
+        CacheConfig cacheConfig =
+            MappingCommandUtils.getCacheConfig(configurationPersistenceService, group);
+        RegionConfig regionConfig = checkForRegion(regionName, cacheConfig, group);
+        checkForExistingMapping(regionName, regionConfig);
+        checkForCacheLoader(regionName, regionConfig);
+        checkForCacheWriter(regionName, synchronous, regionConfig);
+        checkForAsyncQueue(regionName, synchronous, cacheConfig);
+      }
     } catch (PreconditionException ex) {
       return ResultModel.createError(ex.getMessage());
+    }
+
+    CliFunctionResult preconditionCheckResult =
+        executeFunctionAndGetFunctionResult(new CreateMappingPreconditionCheckFunction(), mapping,
+            targetMembers.iterator().next());
+    if (preconditionCheckResult.isSuccessful()) {
+      Object[] preconditionOutput = (Object[]) preconditionCheckResult.getResultObject();
+      String computedIds = (String) preconditionOutput[0];
+      if (computedIds != null) {
+        mapping.setIds(computedIds);
+      }
+      ArrayList<FieldMapping> fieldMappings = (ArrayList<FieldMapping>) preconditionOutput[1];
+      for (FieldMapping fieldMapping : fieldMappings) {
+        mapping.addFieldMapping(fieldMapping);
+      }
+    } else {
+      String message = preconditionCheckResult.getStatusMessage();
+      return ResultModel.createError(message);
     }
 
     // action
@@ -128,13 +169,9 @@ public class CreateMappingCommand extends SingleGfshCommand {
     return result;
   }
 
-  private RegionConfig checkForRegion(String regionName, CacheConfig cacheConfig)
+  private RegionConfig checkForRegion(String regionName, CacheConfig cacheConfig, String groupName)
       throws PreconditionException {
-    RegionConfig regionConfig = findRegionConfig(cacheConfig, regionName);
-    if (regionConfig == null) {
-      throw new PreconditionException("A region named " + regionName + " must already exist.");
-    }
-    return regionConfig;
+    return MappingCommandUtils.checkForRegion(regionName, cacheConfig, groupName);
   }
 
   private void checkForExistingMapping(String regionName, RegionConfig regionConfig)
@@ -176,7 +213,7 @@ public class CreateMappingCommand extends SingleGfshCommand {
   private void checkForAsyncQueue(String regionName, boolean synchronous, CacheConfig cacheConfig)
       throws PreconditionException {
     if (!synchronous) {
-      String queueName = createAsyncEventQueueName(regionName);
+      String queueName = MappingCommandUtils.createAsyncEventQueueName(regionName);
       AsyncEventQueue asyncEventQueue = cacheConfig.getAsyncEventQueues().stream()
           .filter(queue -> queue.getId().equals(queueName)).findFirst().orElse(null);
       if (asyncEventQueue != null) {
@@ -192,7 +229,7 @@ public class CreateMappingCommand extends SingleGfshCommand {
     RegionMapping regionMapping = (RegionMapping) arguments[0];
     boolean synchronous = (Boolean) arguments[1];
     String regionName = regionMapping.getRegionName();
-    String queueName = createAsyncEventQueueName(regionName);
+    String queueName = MappingCommandUtils.createAsyncEventQueueName(regionName);
     RegionConfig regionConfig = findRegionConfig(cacheConfig, regionName);
     if (regionConfig == null) {
       return false;

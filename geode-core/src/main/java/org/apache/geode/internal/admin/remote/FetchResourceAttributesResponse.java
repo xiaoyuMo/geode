@@ -36,7 +36,7 @@ public class FetchResourceAttributesResponse extends AdminResponse {
     m.setRecipient(recipient);
     Statistics s = null;
     InternalDistributedSystem ds = dm.getSystem();
-    s = ds.findStatisticsByUniqueId(rsrcUniqueId);
+    s = ds.getStatisticsManager().findStatisticsByUniqueId(rsrcUniqueId);
     if (s != null) {
       StatisticsType type = s.getType();
       StatisticDescriptor[] tmp = type.getStatistics();
@@ -62,6 +62,7 @@ public class FetchResourceAttributesResponse extends AdminResponse {
     // nothing
   }
 
+  @Override
   public int getDSFID() {
     return FETCH_RESOURCE_ATTRIBUTES_RESPONSE;
   }

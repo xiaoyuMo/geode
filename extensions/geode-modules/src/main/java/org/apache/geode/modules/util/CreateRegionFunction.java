@@ -29,6 +29,7 @@ import org.apache.geode.InternalGemFireError;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheFactory;
+import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Declarable;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
@@ -58,7 +59,7 @@ public class CreateRegionFunction implements Function, Declarable, DataSerializa
   private static final boolean DUMP_SESSION_CACHE_XML =
       Boolean.getBoolean("gemfiremodules.dumpSessionCacheXml");
 
-  private static final String REGION_CONFIGURATION_METADATA_REGION =
+  static final String REGION_CONFIGURATION_METADATA_REGION =
       "__regionConfigurationMetadata";
 
   public CreateRegionFunction() {
@@ -66,6 +67,7 @@ public class CreateRegionFunction implements Function, Declarable, DataSerializa
     this.regionConfigurationsRegion = createRegionConfigurationMetadataRegion();
   }
 
+  @Override
   public void execute(FunctionContext context) {
     RegionConfiguration configuration = (RegionConfiguration) context.getArguments();
     if (this.cache.getLogger().fineEnabled()) {
@@ -114,22 +116,27 @@ public class CreateRegionFunction implements Function, Declarable, DataSerializa
     return status;
   }
 
+  @Override
   public String getId() {
     return ID;
   }
 
+  @Override
   public boolean optimizeForWrite() {
     return false;
   }
 
+  @Override
   public boolean isHA() {
     return true;
   }
 
+  @Override
   public boolean hasResult() {
     return true;
   }
 
+  @Override
   public void init(Properties properties) {}
 
   private RegionStatus createRegion(RegionConfiguration configuration) {
@@ -219,7 +226,8 @@ public class CreateRegionFunction implements Function, Declarable, DataSerializa
     GemFireCacheImpl gemFireCache = (GemFireCacheImpl) cache;
     InternalRegionArguments ira = new InternalRegionArguments().setInternalRegion(true);
     AttributesFactory af = new AttributesFactory();
-    af.setScope(Scope.LOCAL);
+    af.setDataPolicy(DataPolicy.REPLICATE);
+    af.setScope(Scope.DISTRIBUTED_ACK);
     af.addCacheListener(new RegionConfigurationCacheListener());
     RegionAttributes ra = af.create();
     try {

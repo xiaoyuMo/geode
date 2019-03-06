@@ -25,6 +25,7 @@ import java.util.TreeMap;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.InvalidDeltaException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.CacheWriterException;
 import org.apache.geode.cache.CommitConflictException;
 import org.apache.geode.cache.DiskAccessException;
@@ -51,7 +52,9 @@ import org.apache.geode.internal.offheap.annotations.Released;
  */
 public class DistTXState extends TXState {
 
+  @MutableForTesting
   public static Runnable internalBeforeApplyChanges; // TODO: cleanup this test hook
+  @MutableForTesting
   public static Runnable internalBeforeNonTXBasicPut; // TODO: cleanup this test hook
 
   private boolean updatingTxStateDuringPreCommit = false;
@@ -530,6 +533,7 @@ public class DistTXState extends TXState {
    * .gemfire.internal.cache.DistributedPutAllOperation, java.util.Map,
    * org.apache.geode.internal.cache.LocalRegion)
    */
+  @Override
   public void postPutAll(final DistributedPutAllOperation putallOp,
       final VersionedObjectList successfulPuts, InternalRegion reg) {
 
@@ -549,6 +553,7 @@ public class DistTXState extends TXState {
      * We need to put this into the tx state.
      */
     theRegion.syncBulkOp(new Runnable() {
+      @Override
       public void run() {
         // final boolean requiresRegionContext =
         // theRegion.keyRequiresRegionContext();
@@ -608,6 +613,7 @@ public class DistTXState extends TXState {
      * will push them out. We need to put this into the tx state.
      */
     theRegion.syncBulkOp(new Runnable() {
+      @Override
       public void run() {
         InternalDistributedMember myId =
             theRegion.getDistributionManager().getDistributionManagerId();

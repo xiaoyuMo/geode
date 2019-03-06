@@ -38,6 +38,7 @@ import org.apache.geode.CancelException;
 import org.apache.geode.GemFireConfigException;
 import org.apache.geode.GemFireException;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.InterestResultPolicy;
 import org.apache.geode.cache.NoSubscriptionServersAvailableException;
 import org.apache.geode.cache.client.ServerConnectivityException;
@@ -75,6 +76,7 @@ import org.apache.geode.security.GemFireSecurityException;
 public class QueueManagerImpl implements QueueManager {
   private static final Logger logger = LogService.getLogger();
 
+  @Immutable
   private static final Comparator QSIZE_COMPARATOR = new QSizeComparator();
 
   protected final long redundancyRetryInterval;
@@ -136,6 +138,7 @@ public class QueueManagerImpl implements QueueManager {
     this.state = new QueueStateImpl(this);
   }
 
+  @Override
   public InternalPool getPool() {
     return pool;
   }
@@ -152,10 +155,12 @@ public class QueueManagerImpl implements QueueManager {
     return result;
   }
 
+  @Override
   public QueueConnections getAllConnectionsNoWait() {
     return queueConnections;
   }
 
+  @Override
   public QueueConnections getAllConnections() {
 
     ConnectionList snapshot = queueConnections;
@@ -190,10 +195,12 @@ public class QueueManagerImpl implements QueueManager {
     return snapshot;
   }
 
+  @Override
   public InternalLogWriter getSecurityLogger() {
     return securityLogger;
   }
 
+  @Override
   public void close(boolean keepAlive) {
     endpointManager.removeListener(endpointListener);
     synchronized (lock) {
@@ -254,6 +261,7 @@ public class QueueManagerImpl implements QueueManager {
   }
 
 
+  @Override
   public void emergencyClose() {
     shuttingDown = true;
     queueConnections.getPrimary().emergencyClose();
@@ -264,6 +272,7 @@ public class QueueManagerImpl implements QueueManager {
     }
   }
 
+  @Override
   public void start(ScheduledExecutorService background) {
     try {
       denyList.start(background);
@@ -300,6 +309,7 @@ public class QueueManagerImpl implements QueueManager {
 
 
 
+  @Override
   public void readyForEvents(InternalDistributedSystem system) {
     synchronized (lock) {
       this.sentClientReady = true;
@@ -377,6 +387,7 @@ public class QueueManagerImpl implements QueueManager {
    * This method checks whether queue connection exist on this endpoint or not. if its there then it
    * just destroys connection as clientUpdate thread is not there to read that connection.
    */
+  @Override
   public void checkEndpoint(ClientUpdater ccu, Endpoint endpoint) {
     QueueConnectionImpl deadConnection = null;
 
@@ -1076,6 +1087,7 @@ public class QueueManagerImpl implements QueueManager {
     }
   }
 
+  @Override
   public QueueState getState() {
     return this.state;
   }
@@ -1239,7 +1251,9 @@ public class QueueManagerImpl implements QueueManager {
    *
    *
    */
+  @Immutable
   protected static class QSizeComparator implements java.util.Comparator {
+    @Override
     public int compare(Object o1, Object o2) {
       ServerQueueStatus s1 = (ServerQueueStatus) o1;
       ServerQueueStatus s2 = (ServerQueueStatus) o2;
@@ -1340,10 +1354,12 @@ public class QueueManagerImpl implements QueueManager {
       }
     }
 
+    @Override
     public Connection getPrimary() {
       return primary;
     }
 
+    @Override
     public List/* <QueueConnection> */ getBackups() {
       return backups;
     }
@@ -1369,6 +1385,7 @@ public class QueueManagerImpl implements QueueManager {
       return primaryDiscoveryException;
     }
 
+    @Override
     public QueueConnectionImpl getConnection(Endpoint endpoint) {
       return (QueueConnectionImpl) connectionMap.get(endpoint);
     }

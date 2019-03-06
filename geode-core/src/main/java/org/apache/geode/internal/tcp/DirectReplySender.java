@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.InternalGemFireException;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.DMStats;
 import org.apache.geode.distributed.internal.DistributionMessage;
 import org.apache.geode.distributed.internal.LonerDistributionManager.DummyDMStats;
@@ -39,6 +40,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 class DirectReplySender implements ReplySender {
   private static final Logger logger = LogService.getLogger();
 
+  @Immutable
   private static final DMStats DUMMY_STATS = new DummyDMStats();
 
   private final Connection conn;
@@ -48,6 +50,7 @@ class DirectReplySender implements ReplySender {
     this.conn = connection;
   }
 
+  @Override
   public Set<InternalDistributedMember> putOutgoing(DistributionMessage msg) {
     Assert.assertTrue(!this.sentReply, "Trying to reply twice to a message");
     // Using an ArrayList, rather than Collections.singletonList here, because the MsgStreamer

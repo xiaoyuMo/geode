@@ -14,6 +14,8 @@
  */
 package org.apache.geode.internal.cache.xmlcache;
 
+import static org.apache.geode.internal.logging.LogWriterLevel.ALL;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,6 +42,7 @@ import javax.transaction.TransactionManager;
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.GemFireIOException;
 import org.apache.geode.LogWriter;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
@@ -117,6 +120,7 @@ import org.apache.geode.internal.cache.DistributedRegion;
 import org.apache.geode.internal.cache.ExpirationScheduler;
 import org.apache.geode.internal.cache.FilterProfile;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
+import org.apache.geode.internal.cache.HttpService;
 import org.apache.geode.internal.cache.InitialImageOperation;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalCacheForClientAccess;
@@ -277,7 +281,7 @@ public class CacheCreation implements InternalCache {
    * A logger that is used in debugging
    */
   private final InternalLogWriter logWriter =
-      new LocalLogWriter(InternalLogWriter.ALL_LEVEL, System.out);
+      new LocalLogWriter(ALL.intLevel(), System.out);
 
   private final InternalLogWriter securityLogWriter =
       LogWriterFactory.toSecurityLogWriter(this.logWriter);
@@ -322,6 +326,7 @@ public class CacheCreation implements InternalCache {
     createInProgress.set(null);
   }
 
+  @Immutable
   private static final RegionAttributes defaults = new AttributesFactory().create();
 
   RegionAttributes getDefaultAttributes() {
@@ -1138,6 +1143,7 @@ public class CacheCreation implements InternalCache {
     return addCacheServer(false);
   }
 
+  @Override
   public CacheServer addCacheServer(boolean isGatewayReceiver) {
     CacheServer bridge = new CacheServerCreation(this, false);
     this.bridgeServers.add(bridge);
@@ -1340,10 +1346,12 @@ public class CacheCreation implements InternalCache {
     throw new UnsupportedOperationException("Should not be invoked");
   }
 
+  @Override
   public void addGatewayReceiver(GatewayReceiver receiver) {
     this.gatewayReceivers.add(receiver);
   }
 
+  @Override
   public void removeGatewayReceiver(GatewayReceiver receiver) {
     throw new UnsupportedOperationException("Should not be invoked");
   }
@@ -2372,6 +2380,11 @@ public class CacheCreation implements InternalCache {
   }
 
   @Override
+  public void initialize() {
+    throw new UnsupportedOperationException("Should not be invoked");
+  }
+
+  @Override
   public URL getCacheXmlURL() {
     throw new UnsupportedOperationException("Should not be invoked");
   }
@@ -2415,6 +2428,16 @@ public class CacheCreation implements InternalCache {
 
   @Override
   public InternalCacheForClientAccess getCacheForProcessingClientRequests() {
+    throw new UnsupportedOperationException("Should not be invoked");
+  }
+
+  @Override
+  public void throwCacheExistsException() {
+    throw new UnsupportedOperationException("Should not be invoked");
+  }
+
+  @Override
+  public HttpService getHttpService() {
     throw new UnsupportedOperationException("Should not be invoked");
   }
 }

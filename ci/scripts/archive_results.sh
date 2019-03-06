@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -48,7 +47,6 @@ fi
 SANITIZED_GRADLE_TASK=${GRADLE_TASK##*:}
 TMPDIR=${DEST_DIR}/tmp
 GEODE_BUILD=${DEST_DIR}/geode
-GEODE_BUILD_VERSION_NUMBER=$(grep "versionNumber *=" ${GEODE_BUILD}/gradle.properties | awk -F "=" '{print $2}' | tr -d ' ')
 BUILD_TIMESTAMP=$(date +%s)
 
 GEODE_PULL_REQUEST_ID_FILE=${BUILDROOT}/geode/.git/resource/version.json
@@ -68,20 +66,15 @@ if [ -z ${MAINTENANCE_VERSION+x} ]; then
   exit 1
 fi
 
-if [ -z "${GEODE_PULL_REQUEST_ID}" ]; then
-  CONCOURSE_VERSION=$(cat ${GEODE_BUILD_VERSION_FILE})
-  CONCOURSE_PRODUCT_VERSION=${CONCOURSE_VERSION%%-*}
-  GEODE_PRODUCT_VERSION=${GEODE_BUILD_VERSION_NUMBER}
-  CONCOURSE_BUILD_SLUG=${CONCOURSE_VERSION##*-}
-  BUILD_ID=${CONCOURSE_VERSION##*.}
-  FULL_PRODUCT_VERSION=${GEODE_PRODUCT_VERSION}-${CONCOURSE_BUILD_SLUG}
-
-  echo "Concourse VERSION is ${CONCOURSE_VERSION}"
-  echo "Geode product VERSION is ${GEODE_PRODUCT_VERSION}"
-  echo "Build ID is ${BUILD_ID}"
-else
+if [ -e "${GEODE_PULL_REQUEST_ID_FILE}" ]; then
   FULL_PRODUCT_VERSION="geode-pr-${GEODE_PULL_REQUEST_ID}"
+else
+  CONCOURSE_VERSION=$(cat ${GEODE_BUILD_VERSION_FILE})
+  echo "Concourse VERSION is ${CONCOURSE_VERSION}"
+  # Rebuild version, zero-padded
+  FULL_PRODUCT_VERSION=$(get-full-version ${CONCOURSE_VERSION})
 fi
+
 
 directories_file=${DEST_DIR}/artifact_directories
 mkdir -p ${TMPDIR}

@@ -15,7 +15,8 @@
 package org.apache.geode.management.internal.beans;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,8 @@ import javax.management.ObjectName;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.Region;
@@ -102,6 +105,7 @@ public class ManagementAdapter {
   private NotificationBroadcasterSupport memberLevelNotifEmitter;
 
   /** The <code>MBeanServer</code> for this application */
+  @MakeNotStatic
   public static final MBeanServer mbeanServer = MBeanJMXAdapter.mbeanServer;
 
   /** MemberMBean instance **/
@@ -109,20 +113,24 @@ public class ManagementAdapter {
 
   private volatile boolean serviceInitialised = false;
 
+  @MakeNotStatic
   private MBeanAggregator aggregator;
 
-  public static final List<Class> refreshOnInit = new ArrayList<>();
+  @Immutable
+  public static final List<Class> refreshOnInit;
 
-  public static final List<String> internalLocks = new ArrayList<>();
+  @Immutable
+  public static final List<String> internalLocks;
 
   static {
-    refreshOnInit.add(RegionMXBean.class);
-    refreshOnInit.add(MemberMXBean.class);
+    refreshOnInit =
+        Collections.unmodifiableList(Arrays.asList(RegionMXBean.class, MemberMXBean.class));
 
-    internalLocks.add(DLockService.DTLS); // From reserved lock service name
-    internalLocks.add(DLockService.LTLS); // From reserved lock service name
-    internalLocks.add(PartitionedRegionHelper.PARTITION_LOCK_SERVICE_NAME);
-    internalLocks.add(PeerTypeRegistration.LOCK_SERVICE_NAME);
+    internalLocks = Collections.unmodifiableList(Arrays.asList(
+        DLockService.DTLS, // From reserved lock service name
+        DLockService.LTLS, // From reserved lock service name
+        PartitionedRegionHelper.PARTITION_LOCK_SERVICE_NAME,
+        PeerTypeRegistration.LOCK_SERVICE_NAME));
   }
 
   protected MemberMBeanBridge memberMBeanBridge;
@@ -149,7 +157,7 @@ public class ManagementAdapter {
           InternalDistributedSystem.getConnectedInstance().getDistributedMember());
 
       memberSource = MBeanJMXAdapter
-          .getMemberNameOrId(internalCache.getDistributedSystem().getDistributedMember());
+          .getMemberNameOrUniqueId(internalCache.getDistributedSystem().getDistributedMember());
 
       // Type casting to MemberMXBean to expose only those methods described in
       // the interface;
@@ -1050,6 +1058,7 @@ public class ManagementAdapter {
      * Invoked when a client has connected to this process or when this process has connected to a
      * CacheServer.
      */
+    @Override
     public void memberJoined(ClientMembershipEvent event) {
       Notification notification = new Notification(JMXNotificationType.CLIENT_JOINED, serverSource,
           SequenceNumber.next(), System.currentTimeMillis(),
@@ -1062,6 +1071,7 @@ public class ManagementAdapter {
      * Invoked when a client has gracefully disconnected from this process or when this process has
      * gracefully disconnected from a CacheServer.
      */
+    @Override
     public void memberLeft(ClientMembershipEvent event) {
       Notification notification = new Notification(JMXNotificationType.CLIENT_LEFT, serverSource,
           SequenceNumber.next(), System.currentTimeMillis(),
@@ -1074,6 +1084,7 @@ public class ManagementAdapter {
      * Invoked when a client has unexpectedly disconnected from this process or when this process
      * has unexpectedly disconnected from a CacheServer.
      */
+    @Override
     public void memberCrashed(ClientMembershipEvent event) {
       Notification notification = new Notification(JMXNotificationType.CLIENT_CRASHED, serverSource,
           SequenceNumber.next(), System.currentTimeMillis(),

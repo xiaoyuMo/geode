@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheListener;
@@ -60,6 +61,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     implements Serializable {
   private static final long serialVersionUID = 2241078661206355376L;
 
+  @Immutable
   private static final RegionAttributes defaultAttributes = new AttributesFactory().create();
 
   /** The attributes' cache listener */
@@ -387,8 +389,9 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
           "EntryIdleTimeout is not the same");
     }
     if (!equal(this.customEntryIdleTimeout, other.getCustomEntryIdleTimeout())) {
-      throw new RuntimeException(
-          "CustomEntryIdleTimeout is not the same");
+      throw new RuntimeException(String.format(
+          "CustomEntryIdleTimeout is not the same. this %s, other: %s", this.customEntryIdleTimeout,
+          other.getCustomEntryIdleTimeout()));
     }
     if (!equal(this.entryTimeToLive, other.getEntryTimeToLive())) {
       throw new RuntimeException(
@@ -401,7 +404,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     if (!equal(this.partitionAttributes, other.getPartitionAttributes())) {
       throw new RuntimeException(
           String.format("PartitionAttributes are not the same. this: %s, other: %s",
-              new Object[] {this, other.getPartitionAttributes()}));
+              this, other.getPartitionAttributes()));
     }
     if (!equal(this.membershipAttributes, other.getMembershipAttributes())) {
       throw new RuntimeException(
@@ -414,8 +417,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     if (!equal(this.evictionAttributes, other.getEvictionAttributes())) {
       throw new RuntimeException(
           String.format("Eviction Attributes are not the same: this: %s other: %s",
-
-              new Object[] {this.evictionAttributes, other.getEvictionAttributes()}));
+              this.evictionAttributes, other.getEvictionAttributes()));
     }
     if (this.diskStoreName == null) {
       // only compare the DWA, diskDirs and diskSizes when disk store is not configured
@@ -535,6 +537,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return true;
   }
 
+  @Override
   public CacheLoader getCacheLoader() {
     return this.cacheLoader;
   }
@@ -546,6 +549,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public CacheWriter getCacheWriter() {
     return this.cacheWriter;
   }
@@ -557,6 +561,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public Class getKeyConstraint() {
     return this.keyConstraint;
   }
@@ -566,6 +571,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasKeyConstraint(true);
   }
 
+  @Override
   public Class getValueConstraint() {
     return this.valueConstraint;
   }
@@ -575,6 +581,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasValueConstraint(true);
   }
 
+  @Override
   public ExpirationAttributes getRegionTimeToLive() {
     return this.regionTimeToLive;
   }
@@ -586,6 +593,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public ExpirationAttributes getRegionIdleTimeout() {
     return this.regionIdleTimeout;
   }
@@ -597,10 +605,12 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public ExpirationAttributes getEntryTimeToLive() {
     return this.entryTimeToLive;
   }
 
+  @Override
   public CustomExpiry getCustomEntryTimeToLive() {
     return this.customEntryTimeToLive;
   }
@@ -619,10 +629,12 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public ExpirationAttributes getEntryIdleTimeout() {
     return this.entryIdleTimeout;
   }
 
+  @Override
   public CustomExpiry getCustomEntryIdleTimeout() {
     return this.customEntryIdleTimeout;
   }
@@ -641,6 +653,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     return old;
   }
 
+  @Override
   public MirrorType getMirrorType() {
     if (this.dataPolicy.isNormal() || this.dataPolicy.isPreloaded() || this.dataPolicy.isEmpty()
         || this.dataPolicy.withPartitioning()) {
@@ -671,6 +684,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public DataPolicy getDataPolicy() {
     return this.dataPolicy;
   }
@@ -688,6 +702,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     this.dataPolicy = dataPolicy;
   }
 
+  @Override
   public Scope getScope() {
     return this.scope;
   }
@@ -697,12 +712,14 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasScope(true);
   }
 
+  @Override
   public CacheListener[] getCacheListeners() {
     CacheListener[] result = new CacheListener[this.cacheListeners.size()];
     this.cacheListeners.toArray(result);
     return result;
   }
 
+  @Override
   public CacheListener getCacheListener() {
     if (this.cacheListeners.isEmpty()) {
       return null;
@@ -750,6 +767,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasAsyncEventListeners(true);
   }
 
+  @Override
   public int getInitialCapacity() {
     return this.initialCapacity;
   }
@@ -759,6 +777,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasInitialCapacity(true);
   }
 
+  @Override
   public float getLoadFactor() {
     return this.loadFactor;
   }
@@ -768,10 +787,12 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasLoadFactor(true);
   }
 
+  @Override
   public int getConcurrencyLevel() {
     return this.concurrencyLevel;
   }
 
+  @Override
   public boolean getConcurrencyChecksEnabled() {
     return this.concurrencyChecksEnabled;
   }
@@ -786,6 +807,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasConcurrencyChecksEnabled(true);
   }
 
+  @Override
   public boolean getStatisticsEnabled() {
     return this.statisticsEnabled;
   }
@@ -795,6 +817,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasStatisticsEnabled(true);
   }
 
+  @Override
   public boolean getIgnoreJTA() {
     return this.ignoreJTA;
   }
@@ -804,6 +827,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasIgnoreJTA(true);
   }
 
+  @Override
   public boolean isLockGrantor() {
     return this.isLockGrantor;
   }
@@ -813,6 +837,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasIsLockGrantor(true);
   }
 
+  @Override
   public boolean getPersistBackup() {
     return getDataPolicy().withPersistence();
   }
@@ -838,6 +863,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public boolean getEarlyAck() {
     return this.earlyAck;
   }
@@ -847,6 +873,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasEarlyAck(true);
   }
 
+  @Override
   public boolean getMulticastEnabled() {
     return this.multicastEnabled;
   }
@@ -859,6 +886,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   /**
    * @deprecated as of prPersistSprint1
    */
+  @Override
   @Deprecated
   public boolean getPublisher() {
     return this.publisher;
@@ -872,14 +900,17 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     // nothing
   }
 
+  @Override
   public boolean getEnableConflation() { // deprecated in 5.0
     return getEnableSubscriptionConflation();
   }
 
+  @Override
   public boolean getEnableBridgeConflation() { // deprecated in 5.7
     return getEnableSubscriptionConflation();
   }
 
+  @Override
   public boolean getEnableSubscriptionConflation() {
     return this.enableSubscriptionConflation;
   }
@@ -893,6 +924,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasEnableSubscriptionConflation(true);
   }
 
+  @Override
   public boolean getEnableAsyncConflation() {
     return this.enableAsyncConflation;
   }
@@ -910,6 +942,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   /**
    * @deprecated as of prPersistSprint2
    */
+  @Override
   public DiskWriteAttributes getDiskWriteAttributes() {
     // not throw exception for mixed API, since it's internal
     return this.diskWriteAttributes;
@@ -929,6 +962,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   /**
    * @deprecated as of prPersistSprint2
    */
+  @Override
   @Deprecated
   public File[] getDiskDirs() {
     // not throw exception for mixed API, since it's internal
@@ -938,6 +972,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   /**
    * @deprecated as of prPersistSprint2
    */
+  @Override
   @Deprecated
   public int[] getDiskDirSizes() {
     // not throw exception for mixed API, since it's internal
@@ -959,6 +994,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasDiskDirs(true);
   }
 
+  @Override
   public String getDiskStoreName() {
     return this.diskStoreName;
   }
@@ -968,6 +1004,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasDiskStoreName(true);
   }
 
+  @Override
   public boolean isDiskSynchronous() {
     return this.isDiskSynchronous;
     // If DiskWriteAttributes is set, the flag needs to be checked from DiskWriteAttribs
@@ -1023,6 +1060,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public boolean getIndexMaintenanceSynchronous() {
     return this.indexMaintenanceSynchronous;
   }
@@ -1506,6 +1544,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public PartitionAttributes getPartitionAttributes() {
     return this.partitionAttributes;
   }
@@ -1525,6 +1564,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   /**
    * @deprecated this API is scheduled to be removed
    */
+  @Override
   @Deprecated
   public MembershipAttributes getMembershipAttributes() {
     return this.membershipAttributes;
@@ -1540,6 +1580,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
   }
 
   /** @since GemFire 5.0 */
+  @Override
   public SubscriptionAttributes getSubscriptionAttributes() {
     return this.subscriptionAttributes;
   }
@@ -1559,6 +1600,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasEvictionAttributes(true);
   }
 
+  @Override
   public EvictionAttributes getEvictionAttributes() {
     return this.evictionAttributes;
   }
@@ -1571,6 +1613,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasPoolName(true);
   }
 
+  @Override
   public String getPoolName() {
     return this.poolName;
   }
@@ -1580,6 +1623,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasCloningEnabled(true);
   }
 
+  @Override
   public boolean getCloningEnabled() {
     return this.cloningEnabled;
   }
@@ -1594,6 +1638,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public Compressor getCompressor() {
     return this.compressor;
   }
@@ -1603,6 +1648,7 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     setHasOffHeap(true);
   }
 
+  @Override
   public boolean getOffHeap() {
     return this.offHeap;
   }
@@ -1643,10 +1689,12 @@ public class RegionAttributesCreation extends UserSpecifiedRegionAttributes
     }
   }
 
+  @Override
   public Set<String> getAsyncEventQueueIds() {
     return this.asyncEventQueueIds;
   }
 
+  @Override
   public Set<String> getGatewaySenderIds() {
     return this.gatewaySenderIds;
   }

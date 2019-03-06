@@ -72,6 +72,8 @@ import org.apache.geode.CancelCriterion;
 import org.apache.geode.CancelException;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.internal.MakeNotStatic;
+import org.apache.geode.annotations.internal.MutableForTesting;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheFactory;
@@ -157,6 +159,7 @@ public class DiskStoreImpl implements DiskStore {
    * which destroy operation issued notification for release). The delay occurs iff the flag used
    * for enabling callbacks to CacheObserver is enabled true
    */
+  @MutableForTesting
   static volatile long DEBUG_DELAY_JOINING_WITH_COMPACTOR = 500;
 
   /**
@@ -245,6 +248,7 @@ public class DiskStoreImpl implements DiskStore {
   /**
    * For some testing purposes we would not consider top property if this flag is set to true
    **/
+  @MutableForTesting
   public static boolean SET_IGNORE_PREALLOCATE = false;
 
   /**
@@ -256,7 +260,9 @@ public class DiskStoreImpl implements DiskStore {
   /**
    * For testing - to keep track of files for which fallocate happened
    */
+  @MutableForTesting
   public static volatile HashSet<String> TEST_CHK_FALLOC_DIRS;
+  @MutableForTesting
   public static volatile HashSet<String> TEST_NO_FALLOC_DIRS;
 
   private final InternalCache cache;
@@ -1164,6 +1170,7 @@ public class DiskStoreImpl implements DiskStore {
     }
   }
 
+  @Override
   public void forceRoll() {
     getPersistentOplogs().forceRoll(null);
   }
@@ -1186,6 +1193,7 @@ public class DiskStoreImpl implements DiskStore {
     }
   }
 
+  @Override
   public boolean forceCompaction() {
     return basicForceCompaction(null);
   }
@@ -1487,6 +1495,7 @@ public class DiskStoreImpl implements DiskStore {
     return this.cache;
   }
 
+  @Override
   public void flush() {
     forceFlush();
   }
@@ -1682,6 +1691,7 @@ public class DiskStoreImpl implements DiskStore {
       diskStore.getPersistentOplogs().flushChild();
     }
 
+    @Override
     public void run() {
       doAsyncFlush();
     }
@@ -2080,6 +2090,7 @@ public class DiskStoreImpl implements DiskStore {
     return getAutoCompact();
   }
 
+  @Override
   public int getCompactionThreshold() {
     return this.compactionThreshold;
   }
@@ -2662,6 +2673,7 @@ public class DiskStoreImpl implements DiskStore {
     }
   }
 
+  @Override
   public void destroy() {
     Set<String> liveRegions = new TreeSet<String>();
     for (AbstractDiskRegion dr : getDiskRegions()) {
@@ -2860,6 +2872,7 @@ public class DiskStoreImpl implements DiskStore {
      * oplogIdToOplog object. This will ensure that an addition of an Oplog to the Map does not get
      * missed. Notifications need not be sent if the thread is already compaction
      */
+    @Override
     public void run() {
       if (!this.scheduled)
         return;
@@ -3140,7 +3153,7 @@ public class DiskStoreImpl implements DiskStore {
     }
   }
 
-  public PersistentMemberID generatePersistentID(DiskRegionView dr) {
+  public PersistentMemberID generatePersistentID() {
     File firstDir = getInfoFileDir().getDir();
     InternalDistributedSystem ids = getCache().getInternalDistributedSystem();
     InternalDistributedMember memberId = ids.getDistributionManager().getDistributionManagerId();
@@ -3337,18 +3350,22 @@ public class DiskStoreImpl implements DiskStore {
   private volatile float criticalPercent;
 
   // DiskStore interface methods
+  @Override
   public String getName() {
     return this.name;
   }
 
+  @Override
   public boolean getAutoCompact() {
     return this.autoCompact;
   }
 
+  @Override
   public boolean getAllowForceCompaction() {
     return this.allowForceCompaction;
   }
 
+  @Override
   public long getMaxOplogSize() {
     return this.maxOplogSizeInBytes / (1024 * 1024);
   }
@@ -3357,22 +3374,27 @@ public class DiskStoreImpl implements DiskStore {
     return this.maxOplogSizeInBytes;
   }
 
+  @Override
   public long getTimeInterval() {
     return this.timeInterval;
   }
 
+  @Override
   public int getQueueSize() {
     return this.queueSize;
   }
 
+  @Override
   public int getWriteBufferSize() {
     return this.writeBufferSize;
   }
 
+  @Override
   public File[] getDiskDirs() {
     return this.diskDirs;
   }
 
+  @Override
   public int[] getDiskDirSizes() {
     return this.diskDirSizes;
   }
@@ -4045,7 +4067,9 @@ public class DiskStoreImpl implements DiskStore {
         false);
   }
 
+  @MakeNotStatic
   private static Cache offlineCache = null;
+  @MakeNotStatic
   private static DistributedSystem offlineDS = null;
 
   private static void cleanupOffline() {
@@ -4227,6 +4251,7 @@ public class DiskStoreImpl implements DiskStore {
     return getPersistentOplogs().getChild() != null;
   }
 
+  @Override
   public UUID getDiskStoreUUID() {
     return this.diskStoreID.toUUID();
   }
@@ -4269,6 +4294,7 @@ public class DiskStoreImpl implements DiskStore {
       this.recoveredStores = new HashMap<Long, DiskRecoveryStore>(recoveredStores);
     }
 
+    @Override
     public void run() {
       synchronized (asyncValueRecoveryLock) {
         DiskStoreObserver.startAsyncValueRecovery(DiskStoreImpl.this);
@@ -4363,6 +4389,7 @@ public class DiskStoreImpl implements DiskStore {
     // schedule another thread to do it
     incBackgroundTasks();
     Future<?> result = executeDiskStoreTask(new DiskStoreTask() {
+      @Override
       public void run() {
         try {
           markBackgroundTaskThread(); // for bug 42775
@@ -4373,6 +4400,7 @@ public class DiskStoreImpl implements DiskStore {
         }
       }
 
+      @Override
       public void taskCancelled() {
         decBackgroundTasks();
       }
@@ -4389,6 +4417,7 @@ public class DiskStoreImpl implements DiskStore {
     // schedule another thread to do it
     incBackgroundTasks();
     boolean isTaskAccepted = executeDiskStoreAsyncTask(new DiskStoreTask() {
+      @Override
       public void run() {
         try {
           markBackgroundTaskThread(); // for bug 42775
@@ -4399,6 +4428,7 @@ public class DiskStoreImpl implements DiskStore {
         }
       }
 
+      @Override
       public void taskCancelled() {
         decBackgroundTasks();
       }

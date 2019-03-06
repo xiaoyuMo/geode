@@ -39,6 +39,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.geode.CancelCriterion;
 import org.apache.geode.InternalGemFireError;
 import org.apache.geode.admin.GemFireHealthConfig;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.DurableClientAttributes;
@@ -128,6 +129,7 @@ public class LonerDistributionManager implements DistributionManager {
   private final List<InternalDistributedMember> viewMembers;
   private ConcurrentMap<InternalDistributedMember, InternalDistributedMember> canonicalIds =
       new ConcurrentHashMap<>();
+  @Immutable
   private static final DummyDMStats stats = new DummyDMStats();
   private final ExecutorService executor =
       LoggingExecutors.newCachedThreadPool("LonerDistributionManagerThread", false);
@@ -137,18 +139,22 @@ public class LonerDistributionManager implements DistributionManager {
     return this.system.getClock().cacheTimeMillis();
   }
 
+  @Override
   public InternalDistributedMember getDistributionManagerId() {
     return localAddress;
   }
 
+  @Override
   public Set<InternalDistributedMember> getDistributionManagerIds() {
     return allIds;
   }
 
+  @Override
   public Set<InternalDistributedMember> getDistributionManagerIdsIncludingAdmin() {
     return allIds;
   }
 
+  @Override
   public InternalDistributedMember getCanonicalId(DistributedMember dmid) {
     InternalDistributedMember iid = (InternalDistributedMember) dmid;
     InternalDistributedMember result = this.canonicalIds.putIfAbsent(iid, iid);
@@ -171,6 +177,7 @@ public class LonerDistributionManager implements DistributionManager {
     return null;
   }
 
+  @Override
   public Set<InternalDistributedMember> getOtherDistributionManagerIds() {
     return Collections.emptySet();
   }
@@ -180,6 +187,7 @@ public class LonerDistributionManager implements DistributionManager {
     return Collections.emptySet();
   }
 
+  @Override
   public Set<InternalDistributedMember> getAllOtherMembers() {
     return Collections.emptySet();
   }
@@ -207,32 +215,39 @@ public class LonerDistributionManager implements DistributionManager {
   }
 
 
+  @Override
   public Set<InternalDistributedMember> addMembershipListenerAndGetDistributionManagerIds(
       MembershipListener l) {
     // return getOtherDistributionManagerIds();
     return allIds;
   }
 
+  @Override
   public Set<InternalDistributedMember> addAllMembershipListenerAndGetAllIds(MembershipListener l) {
     return allIds;
   }
 
+  @Override
   public InternalDistributedMember getId() {
     return getDistributionManagerId();
   }
 
+  @Override
   public InternalDistributedMember getElderId() {
     return getId();
   }
 
+  @Override
   public boolean isElder() {
     return true;
   }
 
+  @Override
   public boolean isLoner() {
     return true;
   }
 
+  @Override
   public synchronized ElderState getElderState(boolean force) {
     // loners are always the elder
     if (this.elderState == null) {
@@ -241,26 +256,39 @@ public class LonerDistributionManager implements DistributionManager {
     return this.elderState;
   }
 
+  @Override
   public long getMembershipPort() {
     return 0;
   }
 
+  @Override
   public InternalDistributedSystem getSystem() {
     return this.system;
   }
 
+  @Override
   public void addMembershipListener(MembershipListener l) {}
 
+  @Override
   public void removeMembershipListener(MembershipListener l) {}
 
+  @Override
   public void removeAllMembershipListener(MembershipListener l) {}
 
+  @Override
+  public Collection<MembershipListener> getMembershipListeners() {
+    return Collections.emptySet();
+  }
+
+  @Override
   public void addAdminConsole(InternalDistributedMember p_id) {}
 
+  @Override
   public DMStats getStats() {
     return stats;
   }
 
+  @Override
   public DistributionConfig getConfig() {
     DistributionConfig result = null;
     if (getSystem() != null) {
@@ -269,6 +297,7 @@ public class LonerDistributionManager implements DistributionManager {
     return result;
   }
 
+  @Override
   public void handleManagerDeparture(InternalDistributedMember p_id, boolean crashed,
       String reason) {}
 
@@ -280,18 +309,22 @@ public class LonerDistributionManager implements DistributionManager {
     return this.logger;
   }
 
+  @Override
   public ExecutorService getThreadPool() {
     return executor;
   }
 
+  @Override
   public ExecutorService getHighPriorityThreadPool() {
     return executor;
   }
 
+  @Override
   public ExecutorService getWaitingThreadPool() {
     return executor;
   }
 
+  @Override
   public ExecutorService getPrMetaDataCleanupThreadPool() {
     return executor;
   }
@@ -301,6 +334,7 @@ public class LonerDistributionManager implements DistributionManager {
     return executor;
   }
 
+  @Override
   public void close() {
     shutdown();
   }
@@ -310,6 +344,7 @@ public class LonerDistributionManager implements DistributionManager {
     return viewMembers;
   }
 
+  @Override
   public Set<InternalDistributedMember> getAdminMemberSet() {
     return Collections.emptySet();
   }
@@ -1141,21 +1176,25 @@ public class LonerDistributionManager implements DistributionManager {
     }
   }
 
+  @Override
   public void throwIfDistributionStopped() {
     stopper.checkCancelInProgress(null);
   }
 
   /** Returns count of members filling the specified role */
+  @Override
   public int getRoleCount(Role role) {
     return localAddress.getRoles().contains(role) ? 1 : 0;
   }
 
   /** Returns true if at least one member is filling the specified role */
+  @Override
   public boolean isRolePresent(Role role) {
     return localAddress.getRoles().contains(role);
   }
 
   /** Returns a set of all roles currently in the distributed system. */
+  @Override
   public Set getAllRoles() {
     return localAddress.getRoles();
   }
@@ -1218,20 +1257,25 @@ public class LonerDistributionManager implements DistributionManager {
     this.getId().setPort(this.lonerPort);
   }
 
+  @Override
   public boolean isCurrentMember(DistributedMember p_id) {
     return getId().equals(p_id);
   }
 
+  @Override
   public Set<InternalDistributedMember> putOutgoing(DistributionMessage msg) {
     return null;
   }
 
+  @Override
   public boolean shutdownInProgress() {
     return false;
   }
 
+  @Override
   public void removeUnfinishedStartup(InternalDistributedMember m, boolean departed) {}
 
+  @Override
   public void setUnfinishedStartups(Collection<InternalDistributedMember> s) {}
 
   protected static class Stopper extends CancelCriterion {
@@ -1251,6 +1295,7 @@ public class LonerDistributionManager implements DistributionManager {
   private final Stopper stopper = new Stopper();
   private volatile InternalCache cache;
 
+  @Override
   public CancelCriterion getCancelCriterion() {
     return stopper;
   }
@@ -1260,6 +1305,7 @@ public class LonerDistributionManager implements DistributionManager {
    *
    * @see org.apache.geode.distributed.internal.DM#getMembershipManager()
    */
+  @Override
   public MembershipManager getMembershipManager() {
     // no membership manager
     return null;
@@ -1270,6 +1316,7 @@ public class LonerDistributionManager implements DistributionManager {
    *
    * @see org.apache.geode.distributed.internal.DM#getRootCause()
    */
+  @Override
   public Throwable getRootCause() {
     return null;
   }
@@ -1279,6 +1326,7 @@ public class LonerDistributionManager implements DistributionManager {
    *
    * @see org.apache.geode.distributed.internal.DM#setRootCause(java.lang.Throwable)
    */
+  @Override
   public void setRootCause(Throwable t) {}
 
   /*
@@ -1288,44 +1336,54 @@ public class LonerDistributionManager implements DistributionManager {
    *
    * @since GemFire 5.9
    */
+  @Override
   public Set<InternalDistributedMember> getMembersInThisZone() {
     return this.allIds;
   }
 
+  @Override
   public void acquireGIIPermitUninterruptibly() {}
 
+  @Override
   public void releaseGIIPermit() {}
 
+  @Override
   public int getDistributedSystemId() {
     return getSystem().getConfig().getDistributedSystemId();
   }
 
+  @Override
   public boolean enforceUniqueZone() {
     return system.getConfig().getEnforceUniqueHost()
         || system.getConfig().getRedundancyZone() != null;
   }
 
+  @Override
   public boolean areInSameZone(InternalDistributedMember member1,
       InternalDistributedMember member2) {
     return false;
   }
 
+  @Override
   public boolean areOnEquivalentHost(InternalDistributedMember member1,
       InternalDistributedMember member2) {
     return member1 == member2;
   }
 
+  @Override
   public Set<InternalDistributedMember> getMembersInSameZone(
       InternalDistributedMember acceptedMember) {
     return Collections.singleton(acceptedMember);
   }
 
+  @Override
   public Set<InetAddress> getEquivalents(InetAddress in) {
     Set<InetAddress> value = new HashSet<InetAddress>();
     value.add(this.getId().getInetAddress());
     return value;
   }
 
+  @Override
   public Set<DistributedMember> getGroupMembers(String group) {
     if (getDistributionManagerId().getGroups().contains(group)) {
       return Collections.singleton(getDistributionManagerId());
@@ -1334,15 +1392,18 @@ public class LonerDistributionManager implements DistributionManager {
     }
   }
 
+  @Override
   public void addHostedLocators(InternalDistributedMember member, Collection<String> locators,
       boolean isSharedConfigurationEnabled) {
     // no-op
   }
 
+  @Override
   public Collection<String> getHostedLocators(InternalDistributedMember member) {
     return Collections.<String>emptyList();
   }
 
+  @Override
   public Map<InternalDistributedMember, Collection<String>> getAllHostedLocators() {
     return Collections.<InternalDistributedMember, Collection<String>>emptyMap();
   }

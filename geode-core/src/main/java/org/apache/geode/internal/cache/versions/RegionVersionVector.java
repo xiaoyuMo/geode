@@ -34,7 +34,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
-import org.apache.geode.annotations.TestingOnly;
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionManager;
@@ -61,27 +61,26 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
 
   private static final Logger logger = LogService.getLogger();
 
-  public static boolean DEBUG =
-      Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "VersionVector.VERBOSE"); // TODO:LOG:CONVERT:
-                                                                                       // REMOVE
-                                                                                       // THIS
+  // TODO:LOG:CONVERT: REMOVE THIS
+  public static final boolean DEBUG =
+      Boolean.getBoolean(DistributionConfig.GEMFIRE_PREFIX + "VersionVector.VERBOSE");
 
 
 
   //////////////////// The following statics exist for unit testing. ////////////////////////////
 
   /** maximum ms wait time while waiting for dominance to be achieved */
-  public static long MAX_DOMINANCE_WAIT_TIME =
+  public static final long MAX_DOMINANCE_WAIT_TIME =
       Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "max-dominance-wait-time", 5000);
 
   /** maximum ms pause time while waiting for dominance to be achieved */
-  public static long DOMINANCE_PAUSE_TIME =
+  public static final long DOMINANCE_PAUSE_TIME =
       Math.min(Long.getLong(DistributionConfig.GEMFIRE_PREFIX + "dominance-pause-time", 300),
           MAX_DOMINANCE_WAIT_TIME);
 
-  private static int INITIAL_CAPACITY = 2;
-  private static int CONCURRENCY_LEVEL = 2;
-  private static float LOAD_FACTOR = 0.75f;
+  private static final int INITIAL_CAPACITY = 2;
+  private static final int CONCURRENCY_LEVEL = 2;
+  private static final float LOAD_FACTOR = 0.75f;
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -189,7 +188,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
     this(ownerId, owner, 0);
   }
 
-  @TestingOnly
+  @VisibleForTesting
   RegionVersionVector(T ownerId, LocalRegion owner, long version) {
     this.myId = ownerId;
     this.isLiveVector = true;
@@ -332,6 +331,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
     }
     // this could block for a while if a limit has been set on the waiting-thread-pool
     dm.getWaitingThreadPool().execute(new Runnable() {
+      @Override
       @edu.umd.cs.findbugs.annotations.SuppressWarnings(
           value = {"UL_UNRELEASED_LOCK", "IMSE_DONT_CATCH_IMSE"})
       public void run() {
@@ -1171,6 +1171,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
    *
    * @see org.apache.geode.internal.DataSerializableFixedID#toData(java.io.DataOutput)
    */
+  @Override
   public void toData(DataOutput out) throws IOException {
     if (this.isLiveVector) {
       throw new IllegalStateException("serialization of this object is not allowed");
@@ -1201,6 +1202,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
    *
    * @see org.apache.geode.internal.DataSerializableFixedID#fromData(java.io.DataInput)
    */
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     this.myId = readMember(in);
     int flags = in.readInt();
@@ -1407,11 +1409,14 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
   }
 
 
+  @Override
   public void memberJoined(DistributionManager distributionManager, InternalDistributedMember id) {}
 
+  @Override
   public void memberSuspect(DistributionManager distributionManager, InternalDistributedMember id,
       InternalDistributedMember whoSuspected, String reason) {}
 
+  @Override
   public void quorumLost(DistributionManager distributionManager,
       Set<InternalDistributedMember> failures, List<InternalDistributedMember> remaining) {}
 
@@ -1421,12 +1426,14 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
    * @see org.apache.geode.distributed.internal.MembershipListener#memberDeparted(org.apache.geode.
    * distributed.internal.membership.InternalDistributedMember, boolean)
    */
+  @Override
   public void memberDeparted(DistributionManager distributionManager,
       final InternalDistributedMember id, boolean crashed) {
     // since unlockForClear uses synchronization we need to try to execute it in another
     // thread so that membership events aren't blocked
     if (distributionManager != null) {
       distributionManager.getWaitingThreadPool().execute(new Runnable() {
+        @Override
         public void run() {
           unlockForClear(id);
         }
@@ -1514,6 +1521,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>>
     return (h != null) && h.isDepartedMember;
   }
 
+  @Override
   public Version[] getSerializationVersions() {
     return null;
   }

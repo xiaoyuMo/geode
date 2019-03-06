@@ -55,6 +55,11 @@ public class ClusterConfigLocatorRestartDUnitTest {
   @Test
   public void serverRestartsAfterLocatorReconnects() throws Exception {
     IgnoredException.addIgnoredException("org.apache.geode.ForcedDisconnectException: for testing");
+    IgnoredException.addIgnoredException("cluster configuration service not available");
+    IgnoredException.addIgnoredException("This thread has been stalled");
+    IgnoredException
+        .addIgnoredException("member unexpectedly shut down shared, unordered connection");
+    IgnoredException.addIgnoredException("Connection refused");
 
     MemberVM locator0 = rule.startLocatorVM(0);
 
@@ -82,6 +87,7 @@ public class ClusterConfigLocatorRestartDUnitTest {
     IgnoredException.addIgnoredException("This member is no longer in the membership view");
     IgnoredException.addIgnoredException("This node is no longer in the membership view");
     IgnoredException.addIgnoredException("org.apache.geode.ForcedDisconnectException: for testing");
+    IgnoredException.addIgnoredException("Connection refused");
 
 
     MemberVM locator0 = rule.startLocatorVM(0);
@@ -115,12 +121,17 @@ public class ClusterConfigLocatorRestartDUnitTest {
   private void waitForLocatorToReconnect(MemberVM locator) {
     // Ensure that disconnect/reconnect sequence starts otherwise in the next await we might end up
     // with the initial locator instead of a newly created one.
-    await()
-        .until(() -> locator.invoke(() -> TestDisconnectListener.disconnectCount > 0));
+    locator.invoke(() -> await()
+        .until(() -> TestDisconnectListener.disconnectCount > 0));
 
-    await().until(() -> locator.invoke(() -> {
-      InternalLocator intLocator = InternalLocator.getLocator();
-      return intLocator != null && intLocator.isSharedConfigurationRunning();
-    }));
+    locator.invoke(() -> {
+      await().until(() -> {
+        InternalLocator intLocator = InternalLocator.getLocator();
+        return intLocator != null
+            && intLocator.getDistributedSystem() != null
+            && intLocator.getDistributedSystem().isConnected()
+            && intLocator.isSharedConfigurationRunning();
+      });
+    });
   }
 }

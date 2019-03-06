@@ -16,26 +16,41 @@
  */
 
 
-import java.nio.file.Paths 
+import org.apache.geode.gradle.plugins.DependencyConstraints
+
+import java.nio.file.Paths
 
 evaluationDependsOn(":geode-core")
 
 apply plugin: 'distribution'
+apply from: "${project.projectDir}/../gradle/publish.gradle"
+// This subproject's 'publication' is not a jar and should not be constrained to match versions
+// in the geode-all-bom.
+project.ext.set('constrainVersionInBom', false)
 
 // disable artifact generation for this project
 jar.enabled = false
+
+project.ext {artifactName = 'apache-geode'}
 
 publishing {
   publications {
     maven(MavenPublication) {
       afterEvaluate {
-        artifactId = 'apache-geode'
+        artifactId = artifactName
 
         artifacts = []
 
         artifact distTar
       }
     }
+  }
+}
+
+signing {
+  afterEvaluate {
+    sign distTar
+    sign srcDistTar
   }
 }
 
@@ -81,19 +96,16 @@ gradle.taskGraph.whenReady( { graph ->
 repositories {
   ivy {
     url 'https://archive.apache.org/'
-    layout 'pattern', {
+    patternLayout {
       artifact '/dist/tomcat/tomcat-6/v6.0.37/bin/[organisation]-[module]-[revision].[ext]'
     }
   }
 }
 
 configurations {
-  bundled {
-    description 'A dependency that is shipped with geode, but is not required to compile'
-  }
   gfshDependencies
 
-  //Configurations used to download and cache web application servers for session module testing
+  // Configurations used to download and cache web application servers for session module testing
   webServerTomcat6
   webServerTomcat7
   webServerTomcat8
@@ -110,6 +122,9 @@ def webServersDir = "$buildDir/generated-resources/webservers"
 
 sourceSets {
   distributedTest {
+    resources {
+      srcDirs webServersDir
+    }
     output.dir(webServersDir, builtBy: 'downloadWebServers')
   }
 }
@@ -121,6 +136,9 @@ task downloadWebServers(type:Copy) {
 }
 
 dependencies {
+  compile(platform(project(':boms:geode-all-bom')))
+  gfshDependencies(platform(project(':boms:geode-all-bom')))
+
   archives project(':geode-common')
   archives project(':geode-json')
   archives project(':geode-core')
@@ -131,6 +149,8 @@ dependencies {
   archives project(':geode-protobuf-messages')
   archives project(':geode-web')
   archives project(':geode-web-api')
+  archives project(':geode-web-management')
+  archives project(':geode-management')
   archives project(':geode-wan')
   archives project(':geode-cq')
   archives project(':geode-rebalancer')
@@ -148,7 +168,7 @@ dependencies {
     exclude module: 'geode-core'
   }
   testRuntime(project(':geode-old-versions'))
-  
+
 
   acceptanceTestRuntime(project(':geode-old-versions'))
 
@@ -162,8 +182,8 @@ dependencies {
   }
   integrationTestCompile(project(':geode-pulse'))
   integrationTestCompile(project(':geode-assembly:geode-assembly-test'))
-  integrationTestCompile('org.apache.httpcomponents:httpclient:' + project.'httpclient.version')
-  integrationTestCompile('javax.annotation:javax.annotation-api:' + project.'javax-annotation.version')
+  integrationTestCompile('org.apache.httpcomponents:httpclient')
+  integrationTestCompile('javax.annotation:javax.annotation-api')
 
 
   distributedTestCompile(project(':geode-core'))
@@ -172,18 +192,25 @@ dependencies {
   }
   distributedTestCompile(project(':extensions:session-testing-war'))
   distributedTestCompile(project(':geode-assembly:geode-assembly-test'))
-  distributedTestCompile('org.apache.httpcomponents:httpclient:' + project.'httpclient.version')
+  distributedTestCompile('org.apache.httpcomponents:httpclient')
+  distributedTestCompile('org.springframework:spring-web')
+  distributedTestCompile(project(':geode-management'))
+  distributedTestCompile(project(':geode-web-management'))
+  distributedTestCompile('org.apache.logging.log4j:log4j-core::tests')
+  distributedTestCompile('org.apache.logging.log4j:log4j-core::test-sources')
 
   distributedTestRuntime(project(':extensions:geode-modules-session-internal')) {
     exclude group: 'org.apache.tomcat'
   }
-  distributedTestRuntime('org.codehaus.cargo:cargo-core-uberjar:' + project.'uberjar.version')
+  distributedTestRuntime('org.codehaus.cargo:cargo-core-uberjar')
 
 
   acceptanceTestCompile(project(':geode-core'))
   acceptanceTestCompile(project(':geode-dunit')) {
     exclude module: 'geode-core'
   }
+  acceptanceTestCompile(project(':geode-assembly:geode-assembly-test'))
+  acceptanceTestCompile('org.apache.httpcomponents:httpclient')
 
 
   uiTestCompile(project(':geode-core'))
@@ -193,12 +220,12 @@ dependencies {
   uiTestCompile(project(':geode-pulse'))
   uiTestCompile(project(':geode-pulse:geode-pulse-test'))
   uiTestCompile(project(':geode-assembly:geode-assembly-test'))
-  uiTestCompile('org.seleniumhq.selenium:selenium-api:' + project.'selenium.version')
-  uiTestCompile('org.seleniumhq.selenium:selenium-remote-driver:' + project.'selenium.version')
-  uiTestCompile('org.seleniumhq.selenium:selenium-support:' + project.'selenium.version')
+  uiTestCompile('org.seleniumhq.selenium:selenium-api')
+  uiTestCompile('org.seleniumhq.selenium:selenium-remote-driver')
+  uiTestCompile('org.seleniumhq.selenium:selenium-support')
 
   uiTestRuntime(project(':geode-core'))
-  uiTestRuntime('org.seleniumhq.selenium:selenium-chrome-driver:' + project.'selenium.version')
+  uiTestRuntime('org.seleniumhq.selenium:selenium-chrome-driver')
 
 
   upgradeTestCompile(project(':geode-core'))
@@ -209,18 +236,18 @@ dependencies {
 
   upgradeTestRuntime(project(':geode-old-versions'))
   upgradeTestRuntime(project(':extensions:session-testing-war'))
-  upgradeTestRuntime('org.codehaus.cargo:cargo-core-uberjar:' + project.'uberjar.version')
-  upgradeTestRuntime('org.apache.httpcomponents:httpclient:' + project.'httpclient.version')
+  upgradeTestRuntime('org.codehaus.cargo:cargo-core-uberjar')
+  upgradeTestRuntime('org.apache.httpcomponents:httpclient')
   upgradeTestRuntime files({ downloadWebServers } )
 
   //Web servers used for session module testing
-  webServerTomcat6('apache:tomcat:' + project.'tomcat6.version' + '@zip')
-  webServerTomcat7('org.apache.tomcat:tomcat:' + project.'tomcat7.version' + '@zip')
-  webServerTomcat8('org.apache.tomcat:tomcat:' + project.'tomcat8.version' + '@zip')
-  webServerTomcat9('org.apache.tomcat:tomcat:' + project.'tomcat9.version' + '@zip')
-  webServerJetty('org.eclipse.jetty:jetty-distribution:' + project.'jetty.version' + '@zip')
-  
-  gfshDependencies ('org.springframework:spring-web:' + project.'springframework.version'){
+  webServerTomcat6('apache:tomcat:' + DependencyConstraints.get('tomcat6.version') + '@zip')
+  webServerTomcat7('org.apache.tomcat:tomcat:' + DependencyConstraints.get('tomcat7.version') + '@zip')
+  webServerTomcat8('org.apache.tomcat:tomcat:' + DependencyConstraints.get('tomcat8.version') + '@zip')
+  webServerTomcat9('org.apache.tomcat:tomcat:' + DependencyConstraints.get('tomcat9.version') + '@zip')
+  webServerJetty('org.eclipse.jetty:jetty-distribution:' + DependencyConstraints.get('jetty.version') + '@zip')
+
+  gfshDependencies ('org.springframework:spring-web') {
     exclude module: 'spring-core'
     exclude module: 'commons-logging'
   }
@@ -248,7 +275,7 @@ task defaultCacheConfig(type: JavaExec, dependsOn: classes) {
   }
 }
 
-// This closure sets the gemfire classpath.  If we add another jar to the classpath it must
+// This closure sets the geode classpath.  If we add another jar to the classpath it must
 // be included in the filter logic below.
 def cp = {
   // first add all the dependent project jars
@@ -287,33 +314,63 @@ def cp = {
   return jars.plus(depJars).unique().join(' ')
 }
 
-// Note: this dependency doesn't work if you change a library version from
-// a dependent project.  Please fix me.
-task depsJar (type: Jar, dependsOn: ':geode-core:classes') {
+task configureDepsJar(dependsOn: configurations.archives.dependencies) {
+  def output = project.buildDir.toPath().resolve('reports').resolve('deps_jar_cp.txt')
+  outputs.file {
+    output
+  }
+  doLast {
+    output.write(cp())
+  }
+}
+
+task configureGfshDepsJar(dependsOn: configurations.gfshDependencies.dependencies) {
+  inputs.files {
+    configureDepsJar
+  }
+  inputs.files {
+    project(':geode-core').webJar
+  }
+
+  def output = project.buildDir.toPath().resolve('reports').resolve('gfsh_deps_jar_cp.txt')
+  outputs.file {
+    output
+  }
+  doLast {
+    def classpath = configureDepsJar.outputs.files.singleFile.text + ' ' +
+        project(':geode-core').webJar.archiveName + ' ' +
+        configurations.gfshDependencies.collect { it.getName() }.flatten().join(' ')
+    output.write(classpath)
+  }
+}
+
+// Configure the manifest contents in a separate always-running task to ensure correctness of
+// these dependency jars
+task depsJar (type: Jar) {
+  inputs.files {
+    configureDepsJar
+  }
   description 'Assembles the jar archive that defines the gemfire classpath.'
   archiveName 'geode-dependencies.jar'
   doFirst {
     manifest {
-      attributes("Class-Path": cp())
+      attributes("Class-Path": configureDepsJar.outputs.files.singleFile.text)
     }
   }
 }
 
-// Note: this dependency doesn't work if you change a library version from
-// a dependent project.  Please fix me.
-task gfshDepsJar (type: Jar, dependsOn: ':geode-core:classes') {
+task gfshDepsJar (type: Jar) {
+  inputs.files {
+    configureGfshDepsJar
+  }
   description 'Assembles the jar archive that defines the gfsh classpath.'
   archiveName 'gfsh-dependencies.jar'
   doFirst {
     manifest {
-      attributes("Class-Path": cp() +
-        ' ' + project(':geode-core').webJar.archiveName +
-        ' ' + configurations.gfshDependencies.collect{ it.getName() }.flatten().join(' ')
-      )
+      attributes("Class-Path": configureGfshDepsJar.outputs.files.singleFile.text)
     }
   }
 }
-
 
 def docsDir = file("$buildDir/javadocs")
 task docs(type: Javadoc) {
@@ -386,12 +443,11 @@ distributions {
           exclude relBuild
         }
       }
-
     }
   }
 
   main {
-    baseName = 'apache-geode' //TODO rootProject.name
+    baseName = 'apache-geode'
     contents {
       duplicatesStrategy 'exclude'
       exclude '*.asc'
@@ -434,7 +490,6 @@ distributions {
         from project(':geode-rebalancer').configurations.runtimeClasspath
         from project(':geode-rebalancer').configurations.archives.allArtifacts.files
 
-        from configurations.bundled
         from configurations.gfshDependencies
 
         //These tasks are included as closures (wrapped in {}) because gradle may evaluate
@@ -453,6 +508,9 @@ distributions {
           exclude '*.jar'
         }
         from (project(':geode-web-api').configurations.archives.allArtifacts.files) {
+          exclude '*.jar'
+        }
+        from (project(':geode-web-management').configurations.archives.allArtifacts.files) {
           exclude '*.jar'
         }
       }
@@ -523,4 +581,3 @@ task dumpInstalledJars(dependsOn: installDist) {
     }
   }
 }
-

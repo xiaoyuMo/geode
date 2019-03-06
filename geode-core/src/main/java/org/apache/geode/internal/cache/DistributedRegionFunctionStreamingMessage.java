@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.CancelException;
 import org.apache.geode.DataSerializer;
 import org.apache.geode.SystemFailure;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.CacheClosedException;
 import org.apache.geode.cache.CacheException;
 import org.apache.geode.cache.RegionDestroyedException;
@@ -79,6 +80,7 @@ public class DistributedRegionFunctionStreamingMessage extends DistributionMessa
   private static final short IS_REEXECUTE = UNRESERVED_FLAGS_START;
 
   /** default exception to ensure a false-positive response is never returned */
+  @Immutable
   static final ForceReattemptException UNHANDLED_EXCEPTION =
       (ForceReattemptException) new ForceReattemptException("Unknown exception").fillInStackTrace();
 
@@ -301,6 +303,7 @@ public class DistributedRegionFunctionStreamingMessage extends DistributionMessa
     return this.processorId;
   }
 
+  @Override
   public int getDSFID() {
     return DR_FUNCTION_STREAMING_MESSAGE;
   }
@@ -416,6 +419,7 @@ public class DistributedRegionFunctionStreamingMessage extends DistributionMessa
    *
    * @see org.apache.geode.internal.cache.TransactionMessage#canStartRemoteTransaction()
    */
+  @Override
   public boolean canStartRemoteTransaction() {
     return true;
   }
@@ -425,10 +429,12 @@ public class DistributedRegionFunctionStreamingMessage extends DistributionMessa
    *
    * @see org.apache.geode.internal.cache.TransactionMessage#getTXUniqId()
    */
+  @Override
   public int getTXUniqId() {
     return txUniqId;
   }
 
+  @Override
   public InternalDistributedMember getMemberToMasqueradeAs() {
     if (txMemberId == null) {
       return getSender();
@@ -437,6 +443,7 @@ public class DistributedRegionFunctionStreamingMessage extends DistributionMessa
     }
   }
 
+  @Override
   public InternalDistributedMember getTXOriginatorClient() {
     // TODO Auto-generated method stub
     return null;

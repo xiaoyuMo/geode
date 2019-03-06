@@ -16,6 +16,7 @@ package org.apache.geode.cache.client.internal;
 
 import static org.apache.geode.distributed.ConfigurationProperties.ENABLE_CLUSTER_CONFIGURATION;
 import static org.apache.geode.distributed.ConfigurationProperties.GROUPS;
+import static org.apache.geode.distributed.ConfigurationProperties.HTTP_SERVICE_PORT;
 import static org.apache.geode.distributed.ConfigurationProperties.LOCATORS;
 import static org.apache.geode.distributed.ConfigurationProperties.LOG_LEVEL;
 import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
@@ -46,6 +47,7 @@ import org.apache.geode.cache.server.CacheServer;
 import org.apache.geode.cache.server.ServerLoadProbe;
 import org.apache.geode.distributed.DistributedSystem;
 import org.apache.geode.distributed.Locator;
+import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.internal.cache.PoolFactoryImpl;
 import org.apache.geode.test.dunit.Assert;
 import org.apache.geode.test.dunit.Invoke;
@@ -81,6 +83,7 @@ public abstract class LocatorTestBase extends JUnit4DistributedTestCase {
   public final void preTearDown() throws Exception {
 
     SerializableRunnable tearDown = new SerializableRunnable("tearDown") {
+      @Override
       public void run() {
         Locator locator = (Locator) remoteObjects.get(LOCATOR_KEY);
         if (locator != null) {
@@ -114,13 +117,14 @@ public abstract class LocatorTestBase extends JUnit4DistributedTestCase {
   protected void postTearDownLocatorTestBase() throws Exception {}
 
   protected int startLocator(final String hostName, final String otherLocators) throws Exception {
-    final String testName = getUniqueName();
     disconnectFromDS();
+    final int httpPort = AvailablePortHelper.getRandomAvailableTCPPort();
     Properties props = new Properties();
     props.put(MCAST_PORT, String.valueOf(0));
     props.put(LOCATORS, otherLocators);
     props.put(LOG_LEVEL, LogWriterUtils.getDUnitLogLevel());
     props.put(ENABLE_CLUSTER_CONFIGURATION, "false");
+    props.put(HTTP_SERVICE_PORT, String.valueOf(httpPort));
     File logFile = new File("");
     InetAddress bindAddr = null;
     try {
@@ -242,6 +246,7 @@ public abstract class LocatorTestBase extends JUnit4DistributedTestCase {
   protected void startBridgeClientInVM(VM vm, final Pool pool, final String... regions)
       throws Exception {
     SerializableRunnable connect = new SerializableRunnable("Start bridge client") {
+      @Override
       public void run() throws Exception {
         startBridgeClient(pool, regions);
       }
@@ -292,6 +297,7 @@ public abstract class LocatorTestBase extends JUnit4DistributedTestCase {
 
   protected void stopBridgeMemberVM(VM vm) {
     vm.invoke(new SerializableRunnable("Stop bridge member") {
+      @Override
       public void run() {
         Cache cache = (Cache) remoteObjects.remove(CACHE_KEY);
         cache.close();
@@ -321,11 +327,13 @@ public abstract class LocatorTestBase extends JUnit4DistributedTestCase {
     private final Set discoveredLocators = new HashSet();
     private final Set removedLocators = new HashSet();
 
+    @Override
     public synchronized void locatorsDiscovered(List locators) {
       discoveredLocators.addAll(locators);
       notifyAll();
     }
 
+    @Override
     public synchronized void locatorsRemoved(List locators) {
       removedLocators.addAll(locators);
       notifyAll();

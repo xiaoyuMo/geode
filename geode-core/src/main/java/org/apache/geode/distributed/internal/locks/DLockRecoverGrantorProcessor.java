@@ -25,6 +25,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.DataSerializer;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.DistributionMessage;
@@ -47,6 +48,7 @@ import org.apache.geode.internal.logging.log4j.LogMarker;
 public class DLockRecoverGrantorProcessor extends ReplyProcessor21 {
   private static final Logger logger = LogService.getLogger();
 
+  @Immutable
   protected static final DefaultMessageProcessor nullServiceProcessor =
       new DefaultMessageProcessor();
 
@@ -268,6 +270,7 @@ public class DLockRecoverGrantorProcessor extends ReplyProcessor21 {
       processor.process(dm, this);
     }
 
+    @Override
     public int getDSFID() {
       return DLOCK_RECOVER_GRANTOR_MESSAGE;
     }
@@ -388,6 +391,7 @@ public class DLockRecoverGrantorProcessor extends ReplyProcessor21 {
   }
 
   static class DefaultMessageProcessor implements MessageProcessor {
+    @Override
     public void process(DistributionManager dm, DLockRecoverGrantorMessage msg) {
       ReplyException replyException = null;
       int replyCode = DLockRecoverGrantorReplyMessage.OK;

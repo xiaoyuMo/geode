@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 import org.apache.geode.DataSerializable;
+import org.apache.geode.annotations.Immutable;
 import org.apache.geode.cache.server.ServerLoad;
 import org.apache.geode.cache.server.ServerLoadProbeAdapter;
 import org.apache.geode.cache.server.ServerMetrics;
@@ -39,6 +40,7 @@ import org.apache.geode.internal.cache.xmlcache.Declarable2;
  *
  * @since GemFire 5.7
  */
+@Immutable
 public class ConnectionCountProbe extends ServerLoadProbeAdapter
     implements Declarable2, DataSerializable {
 
@@ -47,6 +49,7 @@ public class ConnectionCountProbe extends ServerLoadProbeAdapter
   /**
    * Get a loads object representing the number of connections to this cache server
    */
+  @Override
   public ServerLoad getLoad(ServerMetrics metrics) {
     float load = metrics.getConnectionCount() / (float) metrics.getMaxConnections();
     int queueLoad = metrics.getSubscriptionConnectionCount();
@@ -55,10 +58,12 @@ public class ConnectionCountProbe extends ServerLoadProbeAdapter
     return new ServerLoad(load, loadPerConnection, queueLoad, 1);
   }
 
+  @Override
   public Properties getConfig() {
     return new Properties();
   }
 
+  @Override
   public void init(Properties props) {}
 
   @Override
@@ -77,10 +82,12 @@ public class ConnectionCountProbe extends ServerLoadProbeAdapter
     return "ConnectionCountProbe";
   }
 
+  @Override
   public void fromData(DataInput in) throws IOException, ClassNotFoundException {
     // do nothing, we have no state
   }
 
+  @Override
   public void toData(DataOutput out) throws IOException {
     // do nothing, we have no state
   }

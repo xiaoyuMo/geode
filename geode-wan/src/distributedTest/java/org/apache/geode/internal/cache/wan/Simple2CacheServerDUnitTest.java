@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.Iterator;
 import java.util.List;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -48,6 +49,7 @@ public class Simple2CacheServerDUnitTest extends WANTestBase {
     super();
   }
 
+  @Ignore // wait to re-fix GEODE-1183
   @Test
   public void testNormalClient2MultipleCacheServer() throws Exception {
     doMultipleCacheServer(false);
@@ -122,6 +124,7 @@ public class Simple2CacheServerDUnitTest extends WANTestBase {
   public static void setClientServerObserver() {
     PoolImpl.AFTER_PRIMARY_IDENTIFICATION_FROM_BACKUP_CALLBACK_FLAG = true;
     ClientServerObserverHolder.setInstance(new ClientServerObserverAdapter() {
+      @Override
       public void afterPrimaryIdentificationFromBackup(ServerLocation primaryEndpoint) {
         LogService.getLogger().info("After primary is set");
         afterPrimaryCount++;

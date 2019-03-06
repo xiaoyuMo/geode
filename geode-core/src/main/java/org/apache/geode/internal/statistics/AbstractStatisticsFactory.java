@@ -26,6 +26,7 @@ import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
+import org.apache.geode.internal.process.ProcessUtils;
 
 /**
  * An abstract standalone implementation of {@link StatisticsFactory}. It can be used in contexts
@@ -35,8 +36,6 @@ import org.apache.geode.StatisticsTypeFactory;
  * @since GemFire 7.0
  */
 public abstract class AbstractStatisticsFactory implements StatisticsFactory, StatisticsManager {
-
-  private final long id;
   private final String name;
   private final CopyOnWriteArrayList<Statistics> statsList;
   private int statsListModCount = 0;
@@ -46,7 +45,6 @@ public abstract class AbstractStatisticsFactory implements StatisticsFactory, St
   private final long startTime;
 
   public AbstractStatisticsFactory(long id, String name, long startTime) {
-    this.id = id;
     this.name = name;
     this.startTime = startTime;
 
@@ -63,8 +61,8 @@ public abstract class AbstractStatisticsFactory implements StatisticsFactory, St
   }
 
   @Override
-  public long getId() {
-    return this.id;
+  public int getPid() {
+    return ProcessUtils.identifyPidAsUnchecked();
   }
 
   @Override
@@ -90,20 +88,6 @@ public abstract class AbstractStatisticsFactory implements StatisticsFactory, St
       result = statsList.size();
     }
     return result;
-  }
-
-  @Override
-  public Statistics findStatistics(long id) {
-    List<Statistics> statsList = this.statsList;
-    synchronized (statsList) {
-      for (Statistics s : statsList) {
-        if (s.getUniqueId() == id) {
-          return s;
-        }
-      }
-    }
-    throw new RuntimeException(
-        "Could not find statistics instance");
   }
 
   @Override
@@ -140,7 +124,8 @@ public abstract class AbstractStatisticsFactory implements StatisticsFactory, St
     return createOsStatistics(type, textId, 0, 0);
   }
 
-  protected Statistics createOsStatistics(StatisticsType type, String textId, long numericId,
+  @Override
+  public Statistics createOsStatistics(StatisticsType type, String textId, long numericId,
       int osStatFlags) {
     long myUniqueId;
     synchronized (statsListUniqueIdLock) {
@@ -197,6 +182,7 @@ public abstract class AbstractStatisticsFactory implements StatisticsFactory, St
     return (Statistics[]) hits.toArray(result);
   }
 
+  @Override
   public Statistics findStatisticsByUniqueId(long uniqueId) {
     Iterator<Statistics> it = statsList.iterator();
     while (it.hasNext()) {
